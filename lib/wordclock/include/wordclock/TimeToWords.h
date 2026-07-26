@@ -24,7 +24,25 @@ struct Sentence {
     void push(Word w) {
         if (len < kMaxSentenceLen) words[len++] = w;
     }
+
+    bool operator==(const Sentence& o) const {
+        if (len != o.len) return false;
+        for (uint8_t i = 0; i < len; ++i)
+            if (words[i] != o.words[i]) return false;
+        return true;
+    }
+    bool operator!=(const Sentence& o) const { return !(*this == o); }
+
+    // Gesamtzahl der leuchtenden Buchstaben.
+    uint8_t letterCount() const {
+        uint8_t n = 0;
+        for (uint8_t i = 0; i < len; ++i) n = uint8_t(n + span(words[i]).len);
+        return n;
+    }
 };
+
+// Laengste moegliche Kette: "ES IST FUNF NACH HALB SIEBEN" = 23 Buchstaben.
+inline constexpr uint8_t kMaxSentenceLetters = 32;
 
 // hours: 0..23, minutes: 0..59
 Sentence timeToWords(uint8_t hours, uint8_t minutes);

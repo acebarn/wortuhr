@@ -102,4 +102,30 @@ inline constexpr const char* kWordText[kWordCount] = {
 constexpr WordSpan span(Word w) { return kWordSpan[uint8_t(w)]; }
 constexpr const char* text(Word w) { return kWordText[uint8_t(w)]; }
 
+// Welche Rasterzellen gehoeren ueberhaupt zu einem Wort?
+//
+// Das Raster enthaelt 15 Fuellbuchstaben (K, A, DIRS, X, AM, AUJ, NL, K), die
+// zu keinem Wort gehoeren. Die Geisterwoerter-Darstellung laesst sie per
+// Vorgabe dunkel, damit die Frontplatte gegliedert wirkt statt gleichmaessig
+// zu glimmen. 14 Byte, zur Uebersetzungszeit berechnet.
+struct WordCellMask {
+    uint8_t bits[(kLetterCount + 7) / 8] = {};
+    constexpr bool test(uint16_t cell) const {
+        return cell < kLetterCount && ((bits[cell / 8] >> (cell % 8)) & 1);
+    }
+};
+
+constexpr WordCellMask makeWordCellMask() {
+    WordCellMask m{};
+    for (uint8_t w = 0; w < kWordCount; ++w) {
+        for (uint8_t i = 0; i < kWordSpan[w].len; ++i) {
+            const uint16_t c = uint16_t(kWordSpan[w].cell + i);
+            m.bits[c / 8] = uint8_t(m.bits[c / 8] | (1u << (c % 8)));
+        }
+    }
+    return m;
+}
+
+inline constexpr WordCellMask kWordCells = makeWordCellMask();
+
 }  // namespace wordclock
