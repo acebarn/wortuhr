@@ -10,6 +10,7 @@
 #endif
 #include "secrets.h"
 
+#include "ConfigStore.h"
 #include "StripAdapter.h"
 #include "TimeSource.h"
 #include "WifiConnector.h"
@@ -18,6 +19,7 @@
 #include "wordclock/DotRenderer.h"
 #include "wordclock/Health.h"
 #include "wordclock/Notify.h"
+#include "wordclock/Profiles.h"
 
 using namespace wordclock;
 
@@ -27,10 +29,9 @@ constexpr uint8_t kDataPin = D1;  // GPIO5
 constexpr uint16_t kFrameIntervalMs = 50;
 constexpr uint16_t kStatusIntervalMs = 5000;
 
-// Vorlaeufig fest verdrahtet. Kommt spaeter aus dem Konfigurations-Schema.
-constexpr uint8_t kBrightness = 90;
-
 StripAdapter strip(kDataPin);
+ConfigStore store;
+Config config;
 WifiConnector wifi;
 TimeSource clockTime;
 
@@ -43,24 +44,23 @@ Overlay overlay;
 uint32_t lastFrameMs = 0;
 uint32_t lastStatusMs = 0;
 
-void configureStyles() {
-    ClockStyle cs;
-    cs.color = {255, 180, 60};
-    cs.transition = Transition::Staggered;
-    cs.transitionMs = 400;
-    clockRenderer.setStyle(cs);
+// Aus der Konfiguration abgeleitet. Wird bei jedem Wechsel des
+// Darstellungszustands neu gesetzt, nicht bei jedem Bild.
+DisplayState appliedState = DisplayState::Day;
+bool stylesApplied = false;
 
-    DotStyle ds;
-    ds.clockColor = cs.color;
-    dotRenderer.setStyle(ds);
-
-    compositor.setSmoothing(128);
-    compositor.setCurrentLimit(kDefaultCurrentLimitMa);
+void applyStyles(DisplayState state) {
+    clockRenderer.setStyle(clockStyleFor(config, state));
+    dotRenderer.setStyle(dotStyleFor(config, state));
+    compositor.setSmoothing(config.getU8(ConfigKey::Smoothing));
+    compositor.setCurrentLimit(config.getU16(ConfigKey::CurrentLimit));
+    appliedState = state;
+    stylesApplied = true;
 }
 
 HealthInputs gatherHealth(uint32_t nowMs) {
     HealthInputs in;
-    in.configOk = true;   // noch kein LittleFS
+    in.configOk = store.mounted();
     in.apActive = false;  // AP kommt mit der Webapp
     in.mqttEnabled = false;
     in.mqttConnected = false;
@@ -69,6 +69,37 @@ HealthInputs gatherHealth(uint32_t nowMs) {
     in.secondsSinceSync = clockTime.secondsSinceSync(nowMs);
     return in;
 }
+
+#ifdef CONFIG_SELFTEST
+// Prueft den Persistenz-Rundlauf auf echtem Flash: schreiben, umbenennen,
+// zurueckladen. Das Verhalten von LittleFS laesst sich auf dem Host nicht
+// nachstellen, und ungeprueft wollen wir den Pfad nicht mitschleppen.
+void runConfigSelfTest() {
+    Serial.println("\n=== Config-Selbsttest ===");
+    Serial.printf("  eingehaengt: %s\n", store.mounted() ? "ja" : "NEIN");
+
+    constexpr int32_t kMarker = 137;
+    config.set(ConfigKey::Brightness, kMarker);
+    config.set(ConfigKey::NightFrom, 21 * 60 + 45);
+    Serial.printf("  speichern... %s\n", store.save(config) ? "ok" : "FEHLGESCHLAGEN");
+
+    Config reloaded;
+    reloaded.set(ConfigKey::Brightness, 5);  // absichtlich verstellen
+    Serial.printf("  laden...     %s\n", store.load(reloaded) ? "ok" : "FEHLGESCHLAGEN");
+
+    const bool ok = reloaded.get(ConfigKey::Brightness) == kMarker &&
+                    reloaded.get(ConfigKey::NightFrom) == 21 * 60 + 45;
+    Serial.printf("  Rundlauf:    %s (Helligkeit %d, Nacht ab %d)\n", ok ? "BESTANDEN" : "FEHLER",
+                  int(reloaded.get(ConfigKey::Brightness)), int(reloaded.get(ConfigKey::NightFrom)));
+
+    // Sauberen Zustand hinterlassen: Vorgaben schreiben.
+    config.reset();
+    config.set(ConfigKey::Brightness, schemaOf(ConfigKey::Brightness).def);
+    store.save(config);
+    Serial.println("  Vorgaben zurueckgeschrieben");
+    Serial.println("=== fertig ===\n");
+}
+#endif
 
 #ifdef DOT_MAPPING_TEST
 // Beantwortet die beiden Fragen, die sich nur am Geraet klaeren lassen:
@@ -124,7 +155,16 @@ void setup() {
     Serial.printf("Build: %s\n", __TIMESTAMP__);
 
     strip.begin();
-    configureStyles();
+
+    // Ein unbenutzbares Dateisystem ist kein Grund, nicht zu laufen -- die Uhr
+    // arbeitet dann mit Vorgaben weiter und meldet Code 3 auf den Eckpunkten.
+    store.begin();
+    store.load(config);
+    applyStyles(DisplayState::Day);
+
+#ifdef CONFIG_SELFTEST
+    runConfigSelfTest();
+#endif
 
 #ifdef DOT_MAPPING_TEST
     runMappingTest();
@@ -144,6 +184,7 @@ void loop() {
     wifi.tick(nowMs);
     clockTime.tick(nowMs);
     notifications.tick(nowMs, /*mqttConnected=*/false);
+    store.tickAutosave(config, nowMs);
 
     if (nowMs - lastFrameMs < kFrameIntervalMs) return;
     lastFrameMs = nowMs;
@@ -153,17 +194,25 @@ void loop() {
     uint8_t hours = 0, minutes = 0;
     if (!health.wordFieldDark) clockTime.localHm(hours, minutes);
 
+    // Ohne gueltige Zeit gibt es keine Zeitfenster -- dann gilt Tag, sonst
+    // koennte die Uhr im Aus-Zustand haengen bleiben und nie wieder erscheinen.
+    const DisplayState state =
+        health.wordFieldDark ? DisplayState::Day : displayStateFor(config, hours, minutes);
+    const bool panelOff = (state == DisplayState::Off);
+
+    if (!stylesApplied || state != appliedState || config.dirty()) applyStyles(state);
+
     Frame base;
     base.clear();
 
     // Ohne je gestellte Zeit bleibt das Wortfeld dunkel -- lieber nichts als
     // etwas Erfundenes (DESIGN 5).
-    if (!health.wordFieldDark) clockRenderer.render(base, hours, minutes, nowMs);
+    if (!health.wordFieldDark && !panelOff) clockRenderer.render(base, hours, minutes, nowMs);
 
-    dotRenderer.render(base, health, minutes, nowMs, /*panelOff=*/false);
+    dotRenderer.render(base, health, minutes, nowMs, panelOff);
 
     Modifiers mod;
-    mod.brightness = kBrightness;
+    mod.brightness = brightnessFor(config, state);
     overlay.clear();
     notifications.apply(mod, overlay, nowMs,
                         clockRenderer.style().breathDepth > 0);
@@ -172,9 +221,10 @@ void loop() {
 
     if (nowMs - lastStatusMs >= kStatusIntervalMs) {
         lastStatusMs = nowMs;
-        Serial.printf("[status] %02u:%02u  %s  wlan=%s  rssi=%d  heap=%u  %umA\n", hours,
-                      minutes, faultName(health.fault), wifi.connected() ? "ja" : "nein",
-                      WiFi.RSSI(), ESP.getFreeHeap(),
+        static const char* kStateName[] = {"tag", "nacht", "aus"};
+        Serial.printf("[status] %02u:%02u  %s  %s  wlan=%s  rssi=%d  heap=%u  %umA\n", hours,
+                      minutes, kStateName[uint8_t(state)], faultName(health.fault),
+                      wifi.connected() ? "ja" : "nein", WiFi.RSSI(), ESP.getFreeHeap(),
                       unsigned(estimateCurrentMa(compositor.current())));
     }
 }
