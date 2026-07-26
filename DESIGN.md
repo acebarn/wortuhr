@@ -339,7 +339,15 @@ Die IP-Adresse wird **nicht** dauerhaft auf dem Raster angezeigt.
 | LEDs | NeoPixelBus | DMA/UART auf ESP8266, sperrt keine Interrupts |
 | MQTT | PubSubClient | klein, synchron, bewährt |
 | OTA | `espota` nach dem ersten USB-Flash | |
-| Tests | `env:native`, `test_framework = custom` | Kern ohne Hardware prüfbar |
+| Tests | `env:native`, Unity | Kern ohne Hardware prüfbar |
+| Vorschau | `env:preview` | Panel im Terminal, ohne zu flashen |
+
+Die Vorschau benutzt die echte Kette `ClockRenderer → Compositor`, keine
+Nachbildung — sonst würde sie etwas zeigen, das die Uhr nicht tut.
+
+```
+pio run -e preview && .pio/build/preview/program --help
+```
 
 **Logging:** HA-Diagnose-Entitäten als Dauerkanal, RAM-Ringpuffer über `/api/log`
 für Details, Serial nur bei Entwicklung. Das UDP-Multicast-Logging entfällt.
