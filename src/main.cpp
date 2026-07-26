@@ -75,7 +75,8 @@ HealthInputs gatherHealth(uint32_t nowMs) {
 // Stimmt die angenommene Ausrichtung des Rasters, und welcher Strip-Index
 // sitzt in welcher Ecke?
 void runMappingTest() {
-    Serial.println("\n=== Mapping-Test ===");
+    for (uint16_t cycle = 1;; ++cycle) {
+    Serial.printf("\n=== Mapping-Test, Durchlauf %u ===\n", cycle);
 
     Serial.println("1) Zeilen von OBEN nach UNTEN");
     for (uint8_t y = 0; y < kHeight; ++y) {
@@ -100,14 +101,17 @@ void runMappingTest() {
     Serial.println("3) Eckpunkte einzeln. NOTIEREN, welche Ecke leuchtet!");
     for (uint8_t d = 0; d < kDotCount; ++d) {
         strip.showSingle(dotIndex(d), {120, 0, 0});
-        Serial.printf("   Punkt %u  = Strip-Index %u  -> welche Ecke?\n", d, dotIndex(d));
-        delay(3000);
+        Serial.printf("   >>> Punkt %u = Strip-Index %u  -- welche Ecke leuchtet jetzt?\n", d,
+                      dotIndex(d));
+        delay(4000);
     }
 
     Frame off;
     off.clear();
     strip.show(off);
-    Serial.println("=== fertig ===\n");
+    Serial.println("--- Pause, dann von vorn (Strom trennen zum Beenden) ---");
+    delay(2000);
+    }
 }
 #endif
 

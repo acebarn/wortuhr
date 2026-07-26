@@ -30,9 +30,15 @@ ungerade Zeile: index = y*11 + x
 Die Minutenpunkte sind die Fortsetzung des Strips nach dem letzten Buchstaben.
 Sie werden in der Reihenfolge 113, 112, 111, 110 zugeschaltet (1 bis 4 Minuten).
 
-> **Offen:** Welcher Strip-Index physisch in welcher Ecke sitzt, ist nicht dokumentiert
-> und muss einmal am Gerät ausgemessen werden. Blockiert nichts außer der endgültigen
-> Zuordnung der Fehlercodes.
+Die vier Eckpunkte laufen **gegen den Uhrzeigersinn ab oben rechts** (am Gerät
+ausgemessen). Die Rasterausrichtung wurde dabei bestätigt: erste LED oben rechts,
+Zeile 0 oben.
+
+```
+Punkt 1 (112) ──── Punkt 0 (113)
+      │                  │
+Punkt 2 (111) ──── Punkt 3 (110)
+```
 
 ---
 
@@ -383,6 +389,5 @@ für Details, Serial nur bei Entwicklung. Das UDP-Multicast-Logging entfällt.
 
 ## 11. Offene Punkte
 
-- Physische Zuordnung der vier Eckpunkte zu den Strip-Indizes 110–113
 - Digitaluhr: 3×4-Ziffer oder Farbtrennung
 - `glyph`-Primitiv: Format und Kodierung der 11×10-Bitmap

@@ -30,11 +30,29 @@ inline constexpr uint16_t kLedCount = kLetterCount + kDotCount;  // 114
 // Reihenfolge des Zuschaltens fuer die Minuten 1..4, uebernommen aus der
 // Altfirmware (dort: Zeile 10, x = 7..10 bei serpentiner Zaehlung).
 //
-// TODO: Welcher Index physisch in welcher Ecke sitzt, ist nicht dokumentiert
-//       und muss einmal am Geraet ausgemessen werden. Fuer die Minutenanzeige
-//       ist nur die Reihenfolge relevant, fuer die Fehlercodes spaeter auch
-//       die Position.
+// Am Geraet ausgemessen (Mapping-Lauf): die Punkte laufen GEGEN den
+// Uhrzeigersinn, beginnend oben rechts.
+//
+//     Punkt 1 (112) ---- Punkt 0 (113)
+//            |                  |
+//     Punkt 2 (111) ---- Punkt 3 (110)
+//
 inline constexpr uint16_t kDotIndex[kDotCount] = {113, 112, 111, 110};
+
+enum class Corner : uint8_t { TopRight, TopLeft, BottomLeft, BottomRight };
+
+inline constexpr Corner kDotCorner[kDotCount] = {
+    Corner::TopRight, Corner::TopLeft, Corner::BottomLeft, Corner::BottomRight};
+
+constexpr const char* cornerName(Corner c) {
+    switch (c) {
+        case Corner::TopRight: return "oben rechts";
+        case Corner::TopLeft: return "oben links";
+        case Corner::BottomLeft: return "unten links";
+        case Corner::BottomRight: return "unten rechts";
+    }
+    return "?";
+}
 
 // --- Abbildung Raster -> Strip ---------------------------------------------
 //

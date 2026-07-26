@@ -59,14 +59,15 @@ const Rgb kUnlit{13, 13, 15};
 constexpr int kPrintedLines = 14;
 
 void printPanel(const Frame& f, const char* status) {
-    // Die vier Eckpunkte. Welcher Strip-Index physisch in welcher Ecke sitzt,
-    // ist noch nicht ausgemessen -- die Zuordnung hier ist vorlaeufig.
+    // Die vier Eckpunkte, Anordnung am Geraet ausgemessen.
     auto dotChar = [&](uint8_t d) {
         const Rgb c = f.dot(d);
         return fg(c == kBlack ? kUnlit : c) + "●" + kReset;
     };
 
-    std::printf("\n  %s                       %s\n", dotChar(0).c_str(), dotChar(1).c_str());
+    // Ausgemessen: 0 = oben rechts, 1 = oben links, 2 = unten links,
+    // 3 = unten rechts (gegen den Uhrzeigersinn ab oben rechts).
+    std::printf("\n  %s                       %s\n", dotChar(1).c_str(), dotChar(0).c_str());
 
     for (uint8_t y = 0; y < kHeight; ++y) {
         std::printf("    ");
@@ -78,7 +79,7 @@ void printPanel(const Frame& f, const char* status) {
         std::printf("\n");
     }
 
-    std::printf("  %s                       %s\n", dotChar(3).c_str(), dotChar(2).c_str());
+    std::printf("  %s                       %s\n", dotChar(2).c_str(), dotChar(3).c_str());
     std::printf("\n  \033[2m%s\033[0m\033[K\n", status);
 }
 
