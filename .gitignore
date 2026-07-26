@@ -1,0 +1,10 @@
+.pio/
+.vscode/
+.DS_Store
+
+# persoenliche lokale Einstellungen
+.claude/settings.local.json
+
+# Zugangsdaten gehoeren nicht ins Repo
+secrets.h
+data/config.json
