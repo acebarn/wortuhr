@@ -160,14 +160,15 @@ static void test_notify_cannot_reach_the_dots() {
     none.clear();
 
     Modifiers mod;
-    mod.tint = {255, 0, 0};  // wie ein notify "tint"
-    mod.modulation = 64;     // wie ein notify "pulse"
+    mod.recolor = true;         // wie ein notify "tint"
+    mod.tintColor = {255, 0, 0};
+    mod.modulation = 64;        // wie ein notify "pulse"
 
     Compositor comp;
     comp.setCurrentLimit(0);  // Begrenzung hier ausblenden
     const Frame& out = comp.snap(base, none, mod);
 
-    TEST_ASSERT_EQUAL_UINT8_MESSAGE(0, out.cell(0).g, "tint muss das Wortfeld einfaerben");
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(0, out.cell(0).g, "tint muss das Wortfeld umfaerben");
     TEST_ASSERT_TRUE_MESSAGE(out.dot(0) == Rgb({200, 200, 200}),
                              "tint/modulation duerfen die Eckpunkte nicht anfassen");
 }

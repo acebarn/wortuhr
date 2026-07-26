@@ -293,8 +293,29 @@ Waschmaschine und Mülltonne existieren ausschließlich als HA-Automationen.
 }
 ```
 
+**Die sechs Primitive:**
+
+| Style | Wirkung |
+|---|---|
+| `tint` | färbt das Wortfeld um, ruhig |
+| `pulse` | färbt um **und** atmet |
+| `blink` | färbt um **und** blinkt |
+| `glyph` | 11×10-Bitmap über dem Wortfeld, nur gesetzte Bits decken ab |
+| `word` | hebt ein Rasterwort hervor |
+| `anim` | ersetzt die Basis-Ebene durch eine Animation |
+
+Umfärben **ersetzt** den Farbton und behält die Helligkeit je Pixel — es ist
+nicht multiplikativ. Multiplikation kann nie aufhellen: ein blauer `tint` auf
+der bernsteinfarbenen Uhr ergäbe ein dunkles Petrol statt Blau, weil Bernstein
+kaum Blauanteil hat. Verlauf, Übergang und Geisterwörter bleiben dabei erhalten.
+
+Ist das Sekundenatmen aktiv, weicht `pulse` selbsttätig auf `blink` aus — sonst
+wäre es vom Grundrhythmus nicht mehr zu trennen.
+
 **Prioritätsstapel:** Dauerzustände liegen unten, kurze Ereignisse legen sich darüber
 und fallen nach Ablauf ab — der Dauerzustand ist danach automatisch wieder sichtbar.
+Sichtbar ist immer nur der oberste Eintrag; bei gleicher Priorität der zuletzt
+eingetroffene.
 
 **Selbstheilung:** `ttl` ist Pflicht außer bei ausdrücklichem `ttl: 0`. Auch
 `ttl: 0`-Kanäle verfallen, wenn MQTT länger als 10 Minuten weg ist. Sonst färbt ein

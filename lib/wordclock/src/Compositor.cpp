@@ -18,10 +18,10 @@ void Compositor::buildTarget(const Frame& base, const Overlay& overlay, const Mo
     // tint und modulation nur auf dem Buchstabenfeld -- die Eckpunkte gehoeren
     // dem Gesundheitskanal und duerfen von Darstellung und Benachrichtigungen
     // nicht angefasst werden.
-    if (mod.tint != kWhite || mod.modulation != 255) {
+    if (mod.recolor || mod.modulation != 255) {
         for (uint16_t c = 0; c < kLetterCount; ++c) {
             Rgb v = target_.cell(c);
-            if (mod.tint != kWhite) v = modulate(v, mod.tint);
+            if (mod.recolor) v = recolorTo(v, mod.tintColor);
             if (mod.modulation != 255) v = scale(v, mod.modulation);
             target_.setCell(c, v);
         }

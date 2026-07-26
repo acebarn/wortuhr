@@ -40,11 +40,25 @@ constexpr uint8_t scale8(uint8_t v, uint8_t s) { return uint8_t((uint16_t(v) * s
 
 constexpr Rgb scale(Rgb c, uint8_t s) { return {scale8(c.r, s), scale8(c.g, s), scale8(c.b, s)}; }
 
-// Kanalweise Multiplikation. Weiss ist neutral -- so wirkt `tint` als Faerbung,
-// ohne die Helligkeitsverhaeltnisse innerhalb der Wortkette zu zerstoeren.
+// Kanalweise Multiplikation. Weiss ist neutral.
 constexpr Rgb modulate(Rgb c, Rgb t) {
     return {scale8(c.r, t.r), scale8(c.g, t.g), scale8(c.b, t.b)};
 }
+
+// Helligkeit eines Pixels im Sinne von "wie weit ist diese LED aufgedreht".
+constexpr uint8_t valueOf(Rgb c) {
+    const uint8_t m = c.r > c.g ? c.r : c.g;
+    return m > c.b ? m : c.b;
+}
+
+// Umfaerben: der Farbton wird ersetzt, die Helligkeit je Pixel bleibt.
+//
+// Bewusst nicht multiplikativ. Multiplikation kann nie aufhellen -- ein blauer
+// tint auf einer bernsteinfarbenen Uhr ergaebe ein dunkles Petrol statt Blau,
+// weil Bernstein kaum Blauanteil hat. Fuer Benachrichtigungen soll die Uhr
+// aber die gemeldete Farbe annehmen. Die Helligkeitsverhaeltnisse innerhalb
+// der Wortkette (Verlauf, Uebergang, Geisterwoerter) bleiben dabei erhalten.
+constexpr Rgb recolorTo(Rgb c, Rgb target) { return scale(target, valueOf(c)); }
 
 // --- Zeitbasis fuer Bewegung -----------------------------------------------
 

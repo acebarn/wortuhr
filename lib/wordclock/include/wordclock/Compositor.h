@@ -15,10 +15,14 @@ inline constexpr uint16_t kDefaultCurrentLimitMa = 2500;
 uint32_t estimateCurrentMa(const Frame& f);
 
 struct Modifiers {
-    // Kanalweise Faerbung, Weiss ist neutral. Wirkt NUR auf das Buchstaben-
-    // feld: Benachrichtigungen duerfen die Eckpunkte nicht erreichen, sonst
-    // bricht der Vertrag "Bewegung heisst Stoerung" (DESIGN 4).
-    Rgb tint = kWhite;
+    // Umfaerbung des Wortfelds durch eine Benachrichtigung. Ersetzt den
+    // Farbton und behaelt die Helligkeit je Pixel (siehe recolorTo).
+    //
+    // Wirkt NUR auf das Buchstabenfeld: Benachrichtigungen duerfen die
+    // Eckpunkte nicht erreichen, sonst bricht der Vertrag "Bewegung heisst
+    // Stoerung" (DESIGN 4).
+    bool recolor = false;
+    Rgb tintColor = kWhite;
 
     // Zeitabhaengige Helligkeitsmodulation fuer pulse/blink. Ebenfalls nur
     // auf dem Buchstabenfeld.
