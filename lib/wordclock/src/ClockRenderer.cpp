@@ -41,9 +41,7 @@ Rgb ClockRenderer::colorAt(uint8_t index, uint8_t total) const {
 uint8_t ClockRenderer::breathScale(uint32_t nowMs) const {
     if (style_.breathDepth == 0) return 255;
     const uint32_t period = style_.breathPeriodMs ? style_.breathPeriodMs : 1000;
-    const uint8_t phase = uint8_t((nowMs % period) * 256 / period);
-    const uint8_t tri = phase < 128 ? uint8_t(phase * 2) : uint8_t((255 - phase) * 2);
-    const uint8_t eased = uint8_t((uint16_t(tri) * tri) / 255);  // rundere Kurve
+    const uint8_t eased = breathCurve(phaseOf(nowMs, period));
     return uint8_t(255 - style_.breathDepth + (uint16_t(style_.breathDepth) * eased) / 255);
 }
 

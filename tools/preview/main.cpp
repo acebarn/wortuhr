@@ -15,6 +15,8 @@
 
 #include "wordclock/ClockRenderer.h"
 #include "wordclock/Compositor.h"
+#include "wordclock/DotRenderer.h"
+#include "wordclock/Health.h"
 
 using namespace wordclock;
 
@@ -92,7 +94,33 @@ struct Options {
     ClockStyle style;
     uint8_t smoothing = 128;
     uint16_t currentLimit = kDefaultCurrentLimitMa;
+    HealthInputs health;
+    bool panelOff = false;
 };
+
+// Ein rundum gesundes Geraet als Ausgangspunkt.
+HealthInputs healthyInputs() {
+    HealthInputs in;
+    in.configOk = true;
+    in.wifiConnected = true;
+    in.apActive = false;
+    in.mqttConnected = true;
+    in.everSynced = true;
+    in.secondsSinceSync = 60;
+    return in;
+}
+
+bool applyFault(const std::string& name, HealthInputs& in) {
+    in = healthyInputs();
+    if (name == "ok") return true;
+    if (name == "mqtt") { in.mqttConnected = false; return true; }
+    if (name == "stale") { in.secondsSinceSync = kSyncWarnSeconds + 3600; return true; }
+    if (name == "nowifi") { in.wifiConnected = false; return true; }
+    if (name == "notime") { in.everSynced = false; return true; }
+    if (name == "config") { in.configOk = false; return true; }
+    if (name == "ap") { in.wifiConnected = false; in.apActive = true; return true; }
+    return false;
+}
 
 void usage() {
     std::printf(R"(Wortuhr — Terminal-Vorschau
@@ -111,6 +139,17 @@ void usage() {
   --limit N         Strombegrenzung in mA        Vorgabe: 2500
   --static          nur ein Bild, keine Animation
   --loop            fortlaufend, 5 Minuten je Schritt
+
+  --fault NAME      Gesundheitszustand vortaeuschen:
+                      ok      ruhig, Punkte zeigen die Minute
+                      mqtt    Warnung, atmet langsam
+                      stale   Warnung, Sync ueber 3 Tage her
+                      nowifi  kritisch, 1 Punkt blinkt rot
+                      notime  kritisch, 2 rot -- Wortfeld bleibt dunkel
+                      config  kritisch, 3 rot
+                      ap      kritisch, 4 blau als Lauflicht
+  --off             Aus-Zustand: nur Kritisches bricht durch
+
   --help
 
   Ohne Argumente: Uebergang von 07:28 auf 07:30.
@@ -136,6 +175,14 @@ bool parseArgs(int argc, char** argv, Options& o) {
             o.animate = false;
         } else if (a == "--loop") {
             o.loop = true;
+        } else if (a == "--off") {
+            o.panelOff = true;
+        } else if (a == "--fault") {
+            const char* v = next();
+            if (!v || !applyFault(v, o.health)) {
+                std::printf("unbekannter Zustand: %s\n", v ? v : "(fehlt)");
+                return false;
+            }
         } else if (a == "--fillers") {
             o.style.ghostFillers = true;
         } else if (a == "--gradient") {
@@ -192,10 +239,19 @@ int main(int argc, char** argv) {
     detectColorSupport();
 
     Options o;
+    o.health = healthyInputs();
     if (!parseArgs(argc, argv, o)) return 0;
 
     ClockRenderer renderer;
     renderer.setStyle(o.style);
+
+    DotRenderer dots;
+    {
+        DotStyle ds;
+        ds.clockColor = o.style.color;
+        dots.setStyle(ds);
+    }
+    const HealthState health = evaluate(o.health);
 
     Compositor comp;
     comp.setSmoothing(o.smoothing);
@@ -211,20 +267,21 @@ int main(int argc, char** argv) {
     auto renderOnce = [&](bool smooth) {
         Frame base;
         base.clear();
-        renderer.render(base, h, m, nowMs);
 
-        // Die Minutenpunkte gehoeren spaeter dem Gesundheitskanal. Bis der
-        // gebaut ist, zeigt die Vorschau hier ersatzweise die Minuten.
-        const uint8_t dots = minuteDots(m);
-        for (uint8_t d = 0; d < dots; ++d) base.setDot(d, o.style.color);
+        // Ohne je gestellte Zeit bleibt das Wortfeld dunkel -- die Uhr zeigt
+        // lieber nichts als etwas Erfundenes. Im Aus-Zustand ebenso.
+        if (!health.wordFieldDark && !o.panelOff) renderer.render(base, h, m, nowMs);
+
+        dots.render(base, health, m, nowMs, o.panelOff);
 
         const Frame& out = smooth ? comp.step(base, overlay, mod) : comp.snap(base, overlay, mod);
 
-        char status[160];
-        std::snprintf(status, sizeof(status), "%02u:%02u   %s   %u mA%s   %s", h, m,
-                      transitionName(o.style.transition), unsigned(estimateCurrentMa(out)),
+        char status[200];
+        std::snprintf(status, sizeof(status), "%02u:%02u   %s   %s%s   %u mA%s%s", h, m,
+                      transitionName(o.style.transition), faultName(health.fault),
+                      o.panelOff ? " / aus" : "", unsigned(estimateCurrentMa(out)),
                       comp.lastLimitScale() < 255 ? " (begrenzt)" : "",
-                      g_truecolor ? "" : "256 Farben");
+                      g_truecolor ? "" : "   256 Farben");
         printPanel(out, status);
     };
 

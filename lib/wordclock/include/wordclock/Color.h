@@ -46,4 +46,19 @@ constexpr Rgb modulate(Rgb c, Rgb t) {
     return {scale8(c.r, t.r), scale8(c.g, t.g), scale8(c.b, t.b)};
 }
 
+// --- Zeitbasis fuer Bewegung -----------------------------------------------
+
+// Position innerhalb einer Periode, 0..255.
+constexpr uint8_t phaseOf(uint32_t nowMs, uint32_t periodMs) {
+    return periodMs ? uint8_t((nowMs % periodMs) * 256 / periodMs) : 0;
+}
+
+// Weiche Atemkurve mit runden Umkehrpunkten: 0 -> 0, 128 -> 255, 255 -> 0.
+// Gemeinsame Grundlage fuer das Sekundenatmen der Wortkette und das langsame
+// Atmen der Eckpunkte im Warnzustand -- eine Kurve, ein Erscheinungsbild.
+constexpr uint8_t breathCurve(uint8_t phase) {
+    const uint8_t tri = phase < 128 ? uint8_t(phase * 2) : uint8_t((255 - phase) * 2);
+    return uint8_t((uint16_t(tri) * tri) / 255);
+}
+
 }  // namespace wordclock

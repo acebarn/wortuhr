@@ -118,6 +118,10 @@ Der Rhythmus ist der Träger; Farbe und Anzahl präzisieren nur.
 
 - **Warnung** — die Anzahl bleibt die Minute, nur die Farbe ändert sich.
   Die Uhrzeit ist korrekt, du verlierst keine Information.
+  *Ausnahme:* Bei Minute 0, 5, 10 … leuchtet regulär kein einziger Punkt — eine
+  Warnung wäre dort unsichtbar, die Uhr also ein Fünftel der Zeit warnblind.
+  Deshalb zeigt eine Warnung mindestens einen Punkt. Der Rhythmus macht sie
+  eindeutig; die Minutenangabe ist in diesem einen Fall um eins zu hoch.
 - **Kritisch** — Anzahl *und* Farbe werden zum Fehlercode. Zulässig, weil in diesen
   Zuständen keine gültige Zeit existiert, die die Minuten anzeigen könnten.
   Die Punkte lügen also nie.
