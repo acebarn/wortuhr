@@ -31,6 +31,7 @@ static HealthInputs healthy() {
     in.configOk = true;
     in.wifiConnected = true;
     in.apActive = false;
+    in.mqttEnabled = true;
     in.mqttConnected = true;
     in.everSynced = true;
     in.secondsSinceSync = 60;
@@ -151,6 +152,7 @@ static void test_word_field_darkens_only_when_never_synced() {
 static void test_priority_order() {
     // Alles gleichzeitig kaputt -> das Grundlegendste gewinnt.
     HealthInputs all;
+    all.mqttEnabled = true;
     all.configOk = false;
     all.wifiConnected = false;
     all.apActive = true;
@@ -180,6 +182,17 @@ static void test_priority_order() {
 }
 
 // --- Darstellung -----------------------------------------------------------
+
+// Ohne eingerichteten Broker ist seine Abwesenheit keine Stoerung.
+static void test_mqtt_absence_is_silent_when_not_configured() {
+    HealthInputs in = healthy();
+    in.mqttEnabled = false;
+    in.mqttConnected = false;
+    const HealthState s = evaluate(in);
+    TEST_ASSERT_TRUE_MESSAGE(s.severity == Severity::Ok,
+                             "nicht eingerichtetes MQTT darf nicht warnen");
+    TEST_ASSERT_TRUE(s.fault == Fault::None);
+}
 
 static void test_healthy_dots_show_the_minute_steadily() {
     DotRenderer r;
@@ -366,6 +379,7 @@ int main() {
     RUN_TEST(test_time_trust_thresholds);
     RUN_TEST(test_word_field_darkens_only_when_never_synced);
     RUN_TEST(test_priority_order);
+    RUN_TEST(test_mqtt_absence_is_silent_when_not_configured);
     RUN_TEST(test_healthy_dots_show_the_minute_steadily);
     RUN_TEST(test_never_touches_the_letters);
     RUN_TEST(test_warning_keeps_the_minute_but_stays_visible);

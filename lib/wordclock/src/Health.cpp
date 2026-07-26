@@ -41,7 +41,7 @@ HealthState evaluate(const HealthInputs& in) {
         s.severity = Severity::Warning;
         s.fault = Fault::TimeStale;
         s.rhythm = Rhythm::Breathing;
-    } else if (!in.mqttConnected) {
+    } else if (in.mqttEnabled && !in.mqttConnected) {
         s.severity = Severity::Warning;
         s.fault = Fault::MqttDown;
         s.rhythm = Rhythm::Breathing;

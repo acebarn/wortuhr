@@ -23,7 +23,12 @@ struct HealthInputs {
     bool configOk = true;        // Dateisystem und Konfiguration lesbar
     bool wifiConnected = false;  // Verbindung ins Heimnetz steht
     bool apActive = false;       // eigener Accesspoint ist offen
-    bool mqttConnected = false;  // Broker erreichbar
+
+    // Ist kein Broker eingerichtet, ist seine Abwesenheit keine Stoerung --
+    // sonst atmete die Uhr bei jedem, der HomeAssistant gar nicht nutzt,
+    // dauerhaft eine Warnung.
+    bool mqttEnabled = false;
+    bool mqttConnected = false;
     bool everSynced = false;     // jemals eine echte Uhrzeit gehabt
     uint32_t secondsSinceSync = 0;  // nur sinnvoll, wenn everSynced
 };
