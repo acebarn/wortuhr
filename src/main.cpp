@@ -11,6 +11,7 @@
 #include "secrets.h"
 
 #include "ConfigStore.h"
+#include "MqttAdapter.h"
 #include "StripAdapter.h"
 #include "TimeSource.h"
 #include "WifiConnector.h"
@@ -25,6 +26,13 @@ using namespace wordclock;
 
 namespace {
 
+#ifndef MQTT_HOST
+#define MQTT_HOST ""
+#define MQTT_PORT 1883
+#define MQTT_USER ""
+#define MQTT_PASS ""
+#endif
+
 constexpr uint8_t kDataPin = D1;  // GPIO5
 constexpr uint16_t kFrameIntervalMs = 50;
 constexpr uint16_t kStatusIntervalMs = 5000;
@@ -32,6 +40,7 @@ constexpr uint16_t kStatusIntervalMs = 5000;
 StripAdapter strip(kDataPin);
 ConfigStore store;
 Config config;
+MqttAdapter mqtt;
 WifiConnector wifi;
 TimeSource clockTime;
 
@@ -58,12 +67,26 @@ void applyStyles(DisplayState state) {
     stylesApplied = true;
 }
 
+// Von MqttAdapter aufgerufen, wenn ein notify-Telegramm eintrifft.
+void handleNotify(const NotifyRequest& req, bool clear) {
+    if (clear) {
+        notifications.clear(req.id);
+        Serial.printf("[notify] %s geloescht\n", req.id);
+        return;
+    }
+    if (notifications.push(req, millis()))
+        Serial.printf("[notify] %s prio=%u ttl=%us\n", req.id, req.prio,
+                      unsigned(req.ttlSeconds));
+    else
+        Serial.printf("[notify] %s abgewiesen, Stapel voll\n", req.id);
+}
+
 HealthInputs gatherHealth(uint32_t nowMs) {
     HealthInputs in;
     in.configOk = store.mounted();
     in.apActive = false;  // AP kommt mit der Webapp
-    in.mqttEnabled = false;
-    in.mqttConnected = false;
+    in.mqttEnabled = mqtt.enabled();
+    in.mqttConnected = mqtt.connected();
     in.wifiConnected = wifi.connected();
     in.everSynced = clockTime.everSynced();
     in.secondsSinceSync = clockTime.secondsSinceSync(nowMs);
@@ -174,6 +197,9 @@ void setup() {
     // ohne WLAN. Die Uhr bleibt unter allen Umstaenden eine Uhr (DESIGN 9.1).
     wifi.begin(WIFI_SSID, WIFI_PASS);
     clockTime.begin();
+    mqtt.begin(MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, kDefaultPrefix, &config,
+               &handleNotify);
+    Serial.printf("[mqtt] %s\n", mqtt.enabled() ? "eingerichtet" : "nicht eingerichtet");
 
     Serial.println("[setup] fertig, loop laeuft");
 }
@@ -183,7 +209,8 @@ void loop() {
 
     wifi.tick(nowMs);
     clockTime.tick(nowMs);
-    notifications.tick(nowMs, /*mqttConnected=*/false);
+    mqtt.tick(nowMs);
+    notifications.tick(nowMs, mqtt.connected());
     store.tickAutosave(config, nowMs);
 
     if (nowMs - lastFrameMs < kFrameIntervalMs) return;
@@ -222,9 +249,13 @@ void loop() {
     if (nowMs - lastStatusMs >= kStatusIntervalMs) {
         lastStatusMs = nowMs;
         static const char* kStateName[] = {"tag", "nacht", "aus"};
-        Serial.printf("[status] %02u:%02u  %s  %s  wlan=%s  rssi=%d  heap=%u  %umA\n", hours,
-                      minutes, kStateName[uint8_t(state)], faultName(health.fault),
-                      wifi.connected() ? "ja" : "nein", WiFi.RSSI(), ESP.getFreeHeap(),
-                      unsigned(estimateCurrentMa(compositor.current())));
+        const uint32_t currentMa = estimateCurrentMa(compositor.current());
+        Serial.printf("[status] %02u:%02u  %s  %s  wlan=%s  mqtt=%s  rssi=%d  heap=%u  %umA\n",
+                      hours, minutes, kStateName[uint8_t(state)], faultName(health.fault),
+                      wifi.connected() ? "ja" : "nein", mqtt.connected() ? "ja" : "nein",
+                      WiFi.RSSI(), ESP.getFreeHeap(), unsigned(currentMa));
+
+        mqtt.publishDiag(nowMs, faultName(health.fault), WiFi.RSSI(), ESP.getFreeHeap(),
+                         nowMs / 1000, clockTime.secondsSinceSync(nowMs), currentMa);
     }
 }
