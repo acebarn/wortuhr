@@ -52,7 +52,7 @@ button.anim{background:transparent;color:var(--fg);padding:.35rem .7rem;font-siz
 </style>
 <h1>Wortuhr</h1>
 <div id=status>lade&hellip;</div>
-<div id=nav><a href="/panel">Uhr ansehen</a></div>
+<div id=nav></div>
 <div id=form></div>
 <div id=bar>
   <span id=msg></span>
@@ -172,7 +172,18 @@ async function status(){
   }catch(e){$('#status').textContent='keine Verbindung zur Uhr'}
 }
 
-build().then(status);
+// Uhrenansicht und Galerie gibt es nur im Simulator. Auf dem Geraet wuerden
+// die Links ins Leere zeigen, deshalb erst nachfragen.
+async function simLinks(){
+  try{
+    const r=await fetch('/api/sim');
+    if(!r.ok)return;
+    $('#nav').innerHTML='<a href="/panel">Uhr ansehen</a> &middot; '
+                       +'<a href="/gallery">Animationen ansehen</a>';
+  }catch(e){}
+}
+
+build().then(status).then(simLinks);
 setInterval(status,5000);
 </script>
 )HTML";

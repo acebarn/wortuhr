@@ -176,7 +176,12 @@ pio run -e sim
 | | |
 |---|---|
 | http://localhost:8080/panel | Wortuhr-Ansicht wie an der Wand |
+| http://localhost:8080/gallery | alle Animationen nebeneinander, live |
 | http://localhost:8080/ | Fallback-Konfigurationsseite |
+
+Die Galerie rechnet jedes Preset mit einem **eigenen** Animator — sie stört die
+laufende Uhr also nicht und kann nebenher offen bleiben. Aus jeder Kachel lässt
+sich die Animation mit einem Klick aufs Panel schicken.
 
 Zustände vortäuschen: `--no-wifi`, `--ap`, `--no-sync`, `--sync-age 400000`.
 Die Wanduhr läuft beschleunigt, die Bewegung bleibt in Echtzeit — sonst wären

@@ -10,6 +10,7 @@
 #include <cstring>
 #include <string>
 
+#include "GalleryPage.h"
 #include "PanelPage.h"
 #include "wordclock/WebApi.h"
 
@@ -69,8 +70,9 @@ public:
     // Bei einer pro Durchlauf wuerde die Seite den Server ueberholen: sie
     // fragt zweimal je 100 ms, die Schleife laeuft aber nur zehnmal je
     // Sekunde. Der Rueckstau waechst, und die Ansicht bleibt stehen.
-    void poll() {
+    void poll(uint32_t nowMs) {
         if (listen_ < 0 || !api_) return;
+        nowMs_ = nowMs;
         for (int i = 0; i < 16; ++i)
             if (!serveOne()) break;
     }
@@ -103,6 +105,26 @@ private:
         // Simulator-eigene Wege zuerst.
         if (path == "/panel") {
             send(client, 200, "text/html", panelPage(), std::strlen(panelPage()));
+            ::close(client);
+            return true;
+        }
+        if (path == "/gallery") {
+            send(client, 200, "text/html", galleryPage(), std::strlen(galleryPage()));
+            ::close(client);
+            return true;
+        }
+        if (path == "/api/gallery") {
+            const std::string json = gallery_.framesJson(nowMs_);
+            send(client, 200, "application/json", json.c_str(), json.size());
+            ::close(client);
+            return true;
+        }
+        // Kennung, an der die Seite erkennt, dass sie im Simulator laeuft.
+        // Auf dem Geraet gibt es weder /panel noch /gallery -- die Links
+        // wuerden dort ins Leere zeigen.
+        if (path == "/api/sim") {
+            const char* body = "{\"simulator\":true}";
+            send(client, 200, "application/json", body, std::strlen(body));
             ::close(client);
             return true;
         }
@@ -165,6 +187,8 @@ private:
     int port_ = 0;
     wordclock::WebApi* api_ = nullptr;
     const wordclock::Frame* frame_ = nullptr;
+    Gallery gallery_;
+    uint32_t nowMs_ = 0;
     ActionHandler onAction_ = nullptr;
     void* ctx_ = nullptr;
     char buffer_[4096] = {};

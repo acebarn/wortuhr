@@ -78,6 +78,7 @@ Steuern laesst sich der laufende Simulator ueber MQTT, genau wie die Uhr:
 Im Browser:
 
   http://localhost:8080/panel     Wortuhr-Ansicht wie an der Wand
+  http://localhost:8080/gallery   alle Animationen nebeneinander, live
   http://localhost:8080/          Fallback-Konfigurationsseite
 
 Mitlesen, was HomeAssistant empfangen wuerde:
@@ -180,7 +181,7 @@ int main(int argc, char** argv) {
     const bool httpOk = http.begin(o.httpPort, &app.web(), &strip.last(),
                                    [](wordclock::WebAction a, void*) { appPtr->applyWebAction(a); });
     if (httpOk)
-        std::printf("Weboberflaeche: http://localhost:%d/panel  (Einstellungen unter /)\n",
+        std::printf("Weboberflaeche: http://localhost:%d/panel  ·  /gallery  ·  /\n",
                     o.httpPort);
     else
         std::printf("Weboberflaeche konnte Port %d nicht belegen\n", o.httpPort);
@@ -196,7 +197,7 @@ int main(int argc, char** argv) {
         clock.poll();
         app.tick();
         app.refreshWebStatus();
-        http.poll();
+        http.poll(clock.nowMs());
 
         // Protokollzeilen erscheinen oberhalb des Panels, damit sie beim
         // Ueberzeichnen nicht verlorengehen.
