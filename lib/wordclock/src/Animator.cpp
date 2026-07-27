@@ -91,13 +91,22 @@ constexpr AnimParams p(Rgb from, Rgb to, uint8_t speed, uint8_t density, uint8_t
 
 const AnimPreset kAnimPresets[] = {
     {"matrix", AnimKind::Fall, p({0, 255, 70}, {0, 60, 20}, 110, 70, 128, 190, 0)},
-    {"nordlicht", AnimKind::Wave, p({0, 200, 140}, {90, 0, 200}, 40, 128, 90, 128, 1)},
-    {"silvester", AnimKind::Sparkle, p({255, 220, 120}, {80, 140, 255}, 190, 90, 128, 120, 0)},
+    // Nordlicht: gruen dominant, Violett nur an den Raendern. Breite, langsame
+    // Baender (kleines scale = wenige, weite Wellen) -- so unterscheidet es
+    // sich auch in der Form von plasma, nicht nur in der Farbe.
+    {"nordlicht", AnimKind::Wave, p({0, 255, 110}, {60, 0, 180}, 22, 128, 30, 128, 1)},
+    // Silvester: `to` ist die Farbe im Augenblick des Aufblitzens, `from` die
+    // des Verglimmens -- beim Feuerwerk also weiss nach farbig, nicht umgekehrt.
+    // Dichte deutlich hoeher: bei 90 waren nur rund 13 der 110 Zellen beteiligt,
+    // das wirkte schuechtern statt festlich.
+    {"silvester", AnimKind::Sparkle, p({255, 70, 170}, {255, 245, 210}, 190, 175, 128, 205, 0)},
     {"sonnenaufgang", AnimKind::Wipe, p({255, 60, 0}, {255, 200, 90}, 30, 128, 128, 128, 1)},
     {"feuer", AnimKind::Fire, p({255, 40, 0}, {255, 230, 140}, 150, 150, 128, 128, 0)},
     {"welle", AnimKind::Wave, p({255, 150, 40}, {200, 0, 90}, 70, 128, 110, 128, 0)},
     {"tropfen", AnimKind::Ripple, p({120, 200, 255}, {0, 30, 90}, 90, 128, 120, 128, 0)},
-    {"plasma", AnimKind::Noise, p({255, 0, 120}, {0, 150, 255}, 60, 128, 100, 128, 0)},
+    // Plasma: kraeftiger Magenta-Cyan-Kontrast und feine, schnelle Turbulenz --
+    // bewusst weit weg vom Nordlicht, das breit, langsam und gruen ist.
+    {"plasma", AnimKind::Noise, p({255, 0, 90}, {0, 200, 255}, 70, 128, 150, 128, 0)},
 };
 const uint8_t kAnimPresetCount = sizeof(kAnimPresets) / sizeof(kAnimPresets[0]);
 

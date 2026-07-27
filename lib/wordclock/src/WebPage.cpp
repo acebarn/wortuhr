@@ -39,6 +39,8 @@ button{font:inherit;padding:.5rem .9rem;border-radius:.4rem;border:1px solid var
   background:var(--acc);color:#111;cursor:pointer}
 button.ghost{background:transparent;color:var(--fg)}
 button.danger{background:transparent;color:#e05252;border-color:#e05252}
+button.anim{background:transparent;color:var(--fg);padding:.35rem .7rem;font-size:.9rem}
+#anims{display:flex;flex-wrap:wrap;gap:.4rem;padding:.4rem 0}
 #bar{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);
   padding:.75rem 0;display:flex;gap:.5rem;align-items:center;margin-top:1rem}
 #msg{color:var(--mut);flex:1;font-size:.85rem}
@@ -109,9 +111,33 @@ async function build(){
     el.type=it.masked?'password':'text';el.value=sec[it.key]||'';el.dataset.s=it.key;
     row.append(lab,el);f.append(row);
   });
+  // Animationen: die Liste kommt aus der Firmware, damit eine neue von selbst
+  // erscheint -- dieselbe Regel wie beim Einstellungs-Schema.
+  const ha=document.createElement('h2');ha.textContent='Animationen ausprobieren';f.append(ha);
+  const box=document.createElement('div');box.id='anims';f.append(box);
+  try{
+    const names=await j('/api/animations');
+    names.forEach(n=>{
+      const b=document.createElement('button');b.className='anim';b.textContent=n;
+      b.onclick=()=>playAnim(n);box.append(b);
+    });
+    const st=document.createElement('button');st.className='anim';st.textContent='◼ Stopp';
+    st.onclick=stopAnim;box.append(st);
+  }catch(e){box.textContent='Animationen nicht abrufbar'}
+
   const row=document.createElement('div');row.className='row';
   const b=document.createElement('button');b.className='danger';b.textContent='Werksreset';
   b.onclick=factory;row.append(b);f.append(row);
+}
+
+async function playAnim(name){
+  await fetch('/api/animation',{method:'POST',
+    body:JSON.stringify({name:name,seconds:20})});
+  $('#msg').textContent=name+' laeuft 20 s auf der Uhr';
+}
+async function stopAnim(){
+  await fetch('/api/animation',{method:'POST',body:'{"stop":true}'});
+  $('#msg').textContent='Animation gestoppt';
 }
 
 async function save(){

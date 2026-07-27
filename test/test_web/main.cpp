@@ -243,6 +243,63 @@ static void test_restart_only_on_post() {
     TEST_ASSERT_TRUE(r.call("POST", "/api/restart", "", res) == WebAction::Restart);
 }
 
+// --- Animationen -----------------------------------------------------------
+
+// Die Liste kommt aus der Firmware, damit eine neue Animation von selbst in der
+// Seite erscheint -- dieselbe Regel wie beim Einstellungs-Schema.
+static void test_animation_list_matches_the_presets() {
+    Rig r;
+    JsonDocument doc = r.getJson("/api/animations");
+    JsonArray arr = doc.as<JsonArray>();
+    TEST_ASSERT_EQUAL_UINT8(kAnimPresetCount, arr.size());
+
+    uint8_t i = 0;
+    for (JsonVariant v : arr)
+        TEST_ASSERT_EQUAL_STRING(kAnimPresets[i++].name, v.as<const char*>());
+}
+
+static void test_playing_an_animation() {
+    Rig r;
+    WebResponse res;
+    const WebAction a =
+        r.call("POST", "/api/animation", R"({"name":"feuer","seconds":12})", res);
+
+    TEST_ASSERT_TRUE(a == WebAction::PlayAnimation);
+    TEST_ASSERT_EQUAL_STRING("feuer", r.api.pendingAnimation());
+    TEST_ASSERT_EQUAL_UINT16(12, r.api.pendingAnimationSeconds());
+}
+
+// Ohne Frist liefe eine Probe endlos weiter, wenn man den Tab schliesst.
+static void test_animation_duration_is_bounded() {
+    Rig r;
+    WebResponse res;
+
+    r.call("POST", "/api/animation", R"({"name":"welle"})", res);
+    TEST_ASSERT_TRUE_MESSAGE(r.api.pendingAnimationSeconds() > 0, "es muss eine Vorgabe geben");
+
+    r.call("POST", "/api/animation", R"({"name":"welle","seconds":99999})", res);
+    TEST_ASSERT_TRUE_MESSAGE(r.api.pendingAnimationSeconds() <= 300, "Dauer muss begrenzt sein");
+
+    r.call("POST", "/api/animation", R"({"name":"welle","seconds":0})", res);
+    TEST_ASSERT_TRUE_MESSAGE(r.api.pendingAnimationSeconds() >= 1, "0 Sekunden waeren sinnlos");
+}
+
+static void test_unknown_animation_is_rejected() {
+    Rig r;
+    WebResponse res;
+    TEST_ASSERT_TRUE(r.call("POST", "/api/animation", R"({"name":"gibtsnicht"})", res) ==
+                     WebAction::None);
+    TEST_ASSERT_EQUAL_INT(400, res.status);
+}
+
+static void test_stopping_an_animation() {
+    Rig r;
+    WebResponse res;
+    TEST_ASSERT_TRUE(r.call("POST", "/api/animation", R"({"stop":true})", res) ==
+                     WebAction::StopAnimation);
+    TEST_ASSERT_EQUAL_INT(200, res.status);
+}
+
 // --- Zustand ---------------------------------------------------------------
 
 static void test_status_reports_health() {
@@ -298,6 +355,11 @@ int main() {
     RUN_TEST(test_saving_only_broker_reconnects_mqtt);
     RUN_TEST(test_factory_reset_needs_confirmation);
     RUN_TEST(test_restart_only_on_post);
+    RUN_TEST(test_animation_list_matches_the_presets);
+    RUN_TEST(test_playing_an_animation);
+    RUN_TEST(test_animation_duration_is_bounded);
+    RUN_TEST(test_unknown_animation_is_rejected);
+    RUN_TEST(test_stopping_an_animation);
     RUN_TEST(test_status_reports_health);
     RUN_TEST(test_too_small_buffer_reports_instead_of_truncating);
     return UNITY_END();

@@ -82,6 +82,24 @@ void App::applyWebAction(WebAction action) {
             if (ports_.system) ports_.system->restart();
             break;
 
+        case WebAction::PlayAnimation: {
+            // Ueber den Notify-Stapel, nicht am Animator vorbei: so gelten
+            // dieselben Regeln wie fuer HomeAssistant -- Prioritaet, Ablauf,
+            // Selbstheilung, und im Nacht- und Aus-Zustand bleibt es aus.
+            NotifyRequest req;
+            req.id = "webtest";
+            req.prio = 120;
+            req.style = NotifyStyle::Anim;
+            req.anim = webApi_.pendingAnimation();
+            req.ttlSeconds = webApi_.pendingAnimationSeconds();
+            notify_.push(req, ports_.clock ? ports_.clock->nowMs() : 0);
+            break;
+        }
+
+        case WebAction::StopAnimation:
+            notify_.clear("webtest");
+            break;
+
         case WebAction::Restart:
             // Ausstehende Aenderungen nicht verlieren.
             if (ports_.storage && config_.dirty()) ports_.storage->save(config_);

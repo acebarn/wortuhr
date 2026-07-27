@@ -3,11 +3,16 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "wordclock/Animator.h"
 #include "wordclock/Config.h"
 #include "wordclock/Health.h"
 #include "wordclock/Secrets.h"
 
 namespace wordclock {
+
+// Laenge des vorgemerkten Animationsnamens. Eigene Konstante statt Notify.h
+// einzubinden -- die Webapp braucht vom Notify-Stapel sonst nichts.
+inline constexpr uint8_t kWebAnimNameLen = 16;
 
 // Die Fallback-Webapp (DESIGN 8.3, 9.2).
 //
@@ -40,7 +45,15 @@ struct WebResponse {
 // Was der Aufrufer nach einer Anfrage tun soll. Neustart und Werksreset
 // duerfen nicht mitten in der Antwort passieren -- sonst sieht der Browser
 // nie eine Bestaetigung.
-enum class WebAction : uint8_t { None, Restart, FactoryReset, ReconnectWifi, ReconnectMqtt };
+enum class WebAction : uint8_t {
+    None,
+    Restart,
+    FactoryReset,
+    ReconnectWifi,
+    ReconnectMqtt,
+    PlayAnimation,  // Name und Dauer stehen in pendingAnimation()
+    StopAnimation,
+};
 
 struct WebStatus {
     HealthState health;
@@ -71,6 +84,10 @@ public:
     // abgeschnittenen Antwort -- halbes JSON waere schlimmer als ein Fehler.
     WebAction handle(const WebRequest& req, WebResponse& res, char* buffer, size_t bufferSize);
 
+    // Gueltig unmittelbar nach WebAction::PlayAnimation.
+    const char* pendingAnimation() const { return pendingAnim_; }
+    uint16_t pendingAnimationSeconds() const { return pendingSeconds_; }
+
     // Die eingebettete Seite. Liegt im Flash, nicht im Dateisystem: eine
     // Fallback-Seite, die erst hochgeladen werden muss, ist kein Fallback.
     static const char* indexPage();
@@ -80,6 +97,8 @@ private:
     Config* config_ = nullptr;
     Secrets* secrets_ = nullptr;
     WebStatus status_;
+    char pendingAnim_[kWebAnimNameLen] = {};
+    uint16_t pendingSeconds_ = 0;
 };
 
 }  // namespace wordclock

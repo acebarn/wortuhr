@@ -2,6 +2,7 @@
 
 #include <ArduinoJson.h>
 
+#include <cstdio>
 #include <cstring>
 
 #include "wordclock/ConfigJson.h"
@@ -211,6 +212,46 @@ WebAction WebApi::handle(const WebRequest& req, WebResponse& res, char* buffer,
 
         writeJson(doc, res, buffer, bufferSize);
         return WebAction::None;
+    }
+
+    // --- Animationen -------------------------------------------------------
+    //
+    // Die Liste kommt aus der Firmware, nicht aus der Seite: eine neue
+    // Animation erscheint dadurch von selbst, wie bei den Einstellungen auch.
+    if (isPath(req, "/api/animations")) {
+        JsonDocument doc;
+        JsonArray arr = doc.to<JsonArray>();
+        for (uint8_t i = 0; i < kAnimPresetCount; ++i) arr.add(kAnimPresets[i].name);
+        writeJson(doc, res, buffer, bufferSize);
+        return WebAction::None;
+    }
+
+    if (isPath(req, "/api/animation") && isPost(req)) {
+        JsonDocument in;
+        if (deserializeJson(in, req.body)) {
+            writeText(res, buffer, bufferSize, 400, "JSON kaputt");
+            return WebAction::None;
+        }
+        if (in["stop"].as<bool>()) {
+            writeText(res, buffer, bufferSize, 200, "gestoppt");
+            return WebAction::StopAnimation;
+        }
+
+        const char* name = in["name"];
+        AnimKind kind;
+        AnimParams params;
+        if (!name || !resolveAnim(name, kind, params)) {
+            writeText(res, buffer, bufferSize, 400, "unbekannte Animation");
+            return WebAction::None;
+        }
+
+        std::snprintf(pendingAnim_, sizeof(pendingAnim_), "%s", name);
+        // Ohne Frist liefe eine Probe endlos weiter, wenn man den Tab schliesst.
+        const int32_t secs = in["seconds"] | 20;
+        pendingSeconds_ = uint16_t(secs < 1 ? 1 : (secs > 300 ? 300 : secs));
+
+        writeText(res, buffer, bufferSize, 200, pendingAnim_);
+        return WebAction::PlayAnimation;
     }
 
     // --- Aktionen ----------------------------------------------------------

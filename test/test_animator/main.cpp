@@ -90,6 +90,21 @@ static void test_presets_resolve_and_are_distinct() {
         TEST_ASSERT_TRUE_MESSAGE(p.speed == pr.params.speed, pr.name);
     }
     TEST_ASSERT_TRUE_MESSAGE(kAnimPresetCount >= 5, "es sollten mehrere Presets existieren");
+
+    // Zwei Presets mit identischen Werten waeren ein Kopierfehler: in der
+    // Auswahl staenden zwei Namen, die dasselbe zeigen.
+    for (uint8_t i = 0; i < kAnimPresetCount; ++i) {
+        for (uint8_t j = uint8_t(i + 1); j < kAnimPresetCount; ++j) {
+            const AnimParams& a = kAnimPresets[i].params;
+            const AnimParams& b = kAnimPresets[j].params;
+            const bool same = kAnimPresets[i].kind == kAnimPresets[j].kind && a.from == b.from &&
+                              a.to == b.to && a.speed == b.speed && a.density == b.density &&
+                              a.scale == b.scale && a.decay == b.decay &&
+                              a.direction == b.direction;
+            TEST_ASSERT_FALSE_MESSAGE(same, msg("%s und %s sind identisch", kAnimPresets[i].name,
+                                                kAnimPresets[j].name));
+        }
+    }
 }
 
 // --- Verhalten aller Primitive ---------------------------------------------
