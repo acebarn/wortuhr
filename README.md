@@ -152,6 +152,11 @@ Frontplatte geschnitten.
 Der Stundenbezug springt dadurch bei **:25**, nicht bei :20 — „zwanzig nach
 sieben" meint sieben, „fünf vor halb acht" meint acht.
 
+Die Mischung ist gewollt: Das durchgängig fränkische System hieße „viertel acht,
+halb acht, dreiviertel acht". Bei :15 steht hier trotzdem die Standardform, weil
+„viertel acht" von Auswärtigen regelmäßig als 7:45 missverstanden wird — „viertel
+nach sieben" ist auch in Franken geläufig und für Besuch sofort verständlich.
+
 Ohne Umlaute: FUNF, ZWOLF. Und `EIN UHR`, aber `FUNF NACH EINS`.
 
 ---

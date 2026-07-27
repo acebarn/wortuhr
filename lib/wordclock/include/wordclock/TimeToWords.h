@@ -7,10 +7,23 @@
 // Uhrzeit -> Wortkette.
 //
 // Dialekt (fest, weil in die Frontplatte geschnitten):
-//   :45  DREIVIERTEL <naechste Stunde>   -- nicht "VIERTEL VOR"
+//   :15  VIERTEL NACH <laufende Stunde>
 //   :20  ZWANZIG NACH <laufende Stunde>
 //   :40  ZWANZIG VOR <naechste Stunde>
+//   :45  DREIVIERTEL <naechste Stunde>   -- nicht "VIERTEL VOR"
 //   Stunde 1 heisst "EIN" nur zusammen mit UHR, sonst "EINS".
+//
+// ABSICHTLICH GEMISCHT, bitte nicht "aufraeumen":
+//
+// Das durchgaengig fraenkische System waere "viertel acht, halb acht,
+// dreiviertel acht" -- alle Viertelschritte als Bruchteile der KOMMENDEN
+// Stunde. Hier gilt das nur fuer :30 und :45. Bei :15 steht bewusst die
+// Standardform, weil "viertel acht" von Auswaertigen regelmaessig als 7:45
+// missverstanden wird, waehrend "viertel nach sieben" auch in Franken
+// gelaeufig ist.
+//
+// Der Stundenbezug springt deshalb erst bei :25. Alle zwoelf Schritte sind in
+// test_known_times festgenagelt.
 
 namespace wordclock {
 
