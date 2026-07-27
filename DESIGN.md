@@ -372,6 +372,7 @@ Die IP-Adresse wird **nicht** dauerhaft auf dem Raster angezeigt.
 | OTA | `espota` nach dem ersten USB-Flash | |
 | Tests | `env:native`, Unity | Kern ohne Hardware prüfbar |
 | Vorschau | `env:preview` | Panel im Terminal, ohne zu flashen |
+| Simulator | `env:sim` | ganze Anwendung auf dem Rechner, echter Broker |
 
 Die Vorschau benutzt die echte Kette `ClockRenderer → Compositor`, keine
 Nachbildung — sonst würde sie etwas zeigen, das die Uhr nicht tut.
@@ -379,6 +380,25 @@ Nachbildung — sonst würde sie etwas zeigen, das die Uhr nicht tut.
 ```
 pio run -e preview && .pio/build/preview/program --help
 ```
+
+### Simulator
+
+Firmware und Simulator führen **denselben** Code aus: `wordclock::App` ist
+portabel, unterschiedlich sind nur die Adapter hinter `Ports`. Ein Simulator,
+der die Schleife nachbaut, würde mit der Zeit etwas anderes zeigen als das
+Gerät tut — und genau das soll er ausschließen.
+
+```
+brew services start mosquitto
+pio run -e sim && .pio/build/sim/program --help
+
+mosquitto_sub -v -t 'homeassistant/#' -t 'wortuhr/#'
+mosquitto_pub -t wortuhr/set/brightness -m 200
+```
+
+Zwei getrennte Zeitachsen: `millis()` läuft in Echtzeit, damit Übergänge
+beurteilbar bleiben; die Wanduhr läuft beschleunigt, damit ein Tag-Nacht-Wechsel
+nicht acht Stunden dauert.
 
 **Logging:** HA-Diagnose-Entitäten als Dauerkanal, RAM-Ringpuffer über `/api/log`
 für Details, Serial nur bei Entwicklung. Das UDP-Multicast-Logging entfällt.
