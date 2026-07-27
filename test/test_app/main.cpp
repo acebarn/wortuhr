@@ -377,6 +377,43 @@ static void test_notification_tints_and_expires() {
     TEST_ASSERT_TRUE_MESSAGE(back.r > back.b, "nach Ablauf muss die Uhrenfarbe zurueckkehren");
 }
 
+// Ein Telegramm mit gleicher id ueberschreibt denselben Platz im Stapel. Ein
+// Zeigervergleich haette den Wechsel deshalb nie bemerkt -- alle Animationen
+// saehen aus wie die erste.
+static void test_switching_animation_on_same_channel() {
+    Rig r;
+    r.app.begin();
+    r.app.config().set(ConfigKey::NightEnabled, 0);
+    r.app.config().set(ConfigKey::OffEnabled, 0);
+    r.clock.setTime(12, 0);
+
+    auto play = [&](const char* name) {
+        NotifyRequest req;
+        req.id = "gal";           // bewusst immer derselbe Kanal
+        req.prio = 90;
+        req.style = NotifyStyle::Anim;
+        req.anim = name;
+        req.ttlSeconds = 60;
+        r.app.notifications().push(req, r.clock.ms);
+        r.run(1500);
+        std::string sig;
+        for (uint16_t c = 0; c < kLetterCount; c += 5) {
+            const Rgb v = r.strip.last.cell(c);
+            sig += char('0' + v.r / 32);
+            sig += char('0' + v.g / 32);
+            sig += char('0' + v.b / 32);
+        }
+        return sig;
+    };
+
+    const std::string matrix = play("matrix");
+    const std::string feuer = play("feuer");
+    const std::string plasma = play("plasma");
+
+    TEST_ASSERT_TRUE_MESSAGE(matrix != feuer, "Wechsel auf feuer wurde nicht uebernommen");
+    TEST_ASSERT_TRUE_MESSAGE(feuer != plasma, "Wechsel auf plasma wurde nicht uebernommen");
+}
+
 // =============================================================================
 
 int main() {
@@ -393,5 +430,6 @@ int main() {
     RUN_TEST(test_autosave_waits_for_quiet);
     RUN_TEST(test_broken_storage_does_not_stop_the_clock);
     RUN_TEST(test_notification_tints_and_expires);
+    RUN_TEST(test_switching_animation_on_same_channel);
     return UNITY_END();
 }

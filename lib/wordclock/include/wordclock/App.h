@@ -98,7 +98,10 @@ private:
     // Stundenschlag: laeuft einmal je voller Stunde, nicht bei jedem Bild.
     uint8_t lastChimeHour_ = 0xFF;
     uint32_t chimeUntilMs_ = 0;
-    const char* lastAnimName_ = nullptr;
+    // Kopie, kein Zeiger: der Name liegt im Notify-Stapel, und ein Telegramm
+    // mit gleicher id ueberschreibt denselben Platz. Ein Zeigervergleich haette
+    // den Wechsel deshalb nie bemerkt.
+    char lastAnimName_[kNotifyAnimLen] = {};
 };
 
 inline constexpr uint32_t kAutosaveQuietMs = 3000;

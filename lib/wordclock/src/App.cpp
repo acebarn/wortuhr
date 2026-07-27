@@ -1,5 +1,7 @@
 #include "wordclock/App.h"
 
+#include <cstring>
+
 namespace wordclock {
 
 void App::begin(const Secrets* seed) {
@@ -173,17 +175,19 @@ void App::tick() {
     // Von HomeAssistant ausgeloest -- laeuft, solange der Kanal oben liegt.
     const char* wanted = notify_.activeAnimation();
     if (wanted && mayAnimate) {
-        if (!animator_.running() || lastAnimName_ != wanted) {
-            animator_.startByName(wanted, nowMs);
-            lastAnimName_ = wanted;
-            chimeUntilMs_ = 0;  // laeuft ohne Frist
+        if (!animator_.running() || std::strcmp(lastAnimName_, wanted) != 0) {
+            if (animator_.startByName(wanted, nowMs)) {
+                std::strncpy(lastAnimName_, wanted, sizeof(lastAnimName_) - 1);
+                lastAnimName_[sizeof(lastAnimName_) - 1] = '\0';
+                chimeUntilMs_ = 0;  // laeuft ohne Frist
+            }
         }
     } else if (chimeUntilMs_ && int32_t(nowMs - chimeUntilMs_) >= 0) {
         animator_.stop();
         chimeUntilMs_ = 0;
     } else if (!wanted && !chimeUntilMs_) {
         animator_.stop();
-        lastAnimName_ = nullptr;
+        lastAnimName_[0] = '\0';
     }
     if (!mayAnimate) {
         animator_.stop();
