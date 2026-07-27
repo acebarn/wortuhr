@@ -61,7 +61,11 @@ Fest, weil in die Frontplatte geschnitten. Keine Umlaute.
 ```
 
 **Dialekt:** `DREIVIERTEL` für :45, nicht „VIERTEL VOR". Für :20 und :40 wird
-`ZEHN VOR HALB` / `ZEHN NACH HALB` verwendet, obwohl ZWANZIG im Raster steht.
+auf die **volle Stunde** bezogen — `ZWANZIG NACH <laufende>` und
+`ZWANZIG VOR <kommende>` — nicht auf die halbe.
+
+Daraus folgt eine Besonderheit: Der Stundenbezug springt bei **:25**, nicht bei
+:20. „Zwanzig nach sieben" meint sieben, „fünf vor halb acht" meint acht.
 
 **Überlappungen im Raster** (bewusst, nie gleichzeitig aktiv):
 `ELF`/`FUNF` teilen sich Index 51, `ZEHN`/`NEUN` teilen sich Index 102,

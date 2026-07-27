@@ -35,20 +35,22 @@ Sentence timeToWords(uint8_t hours, uint8_t minutes) {
         case 1:  s.push(Word::FuenfMin); s.push(Word::Nach); break;           // :05
         case 2:  s.push(Word::ZehnMin);  s.push(Word::Nach); break;           // :10
         case 3:  s.push(Word::Viertel);  s.push(Word::Nach); break;           // :15
-        case 4:  s.push(Word::ZehnMin);  s.push(Word::Vor); s.push(Word::Halb); break;   // :20
+        case 4:  s.push(Word::Zwanzig);  s.push(Word::Nach); break;           // :20
         case 5:  s.push(Word::FuenfMin); s.push(Word::Vor); s.push(Word::Halb); break;   // :25
         case 6:  s.push(Word::Halb); break;                                              // :30
         case 7:  s.push(Word::FuenfMin); s.push(Word::Nach); s.push(Word::Halb); break;  // :35
-        case 8:  s.push(Word::ZehnMin);  s.push(Word::Nach); s.push(Word::Halb); break;  // :40
+        case 8:  s.push(Word::Zwanzig);  s.push(Word::Vor); break;            // :40
         case 9:  s.push(Word::Dreiviertel); break;                                       // :45
         case 10: s.push(Word::ZehnMin);  s.push(Word::Vor); break;            // :50
         default: s.push(Word::FuenfMin); s.push(Word::Vor); break;            // :55
     }
 
-    // Ab :20 bezieht sich die Angabe auf die kommende Stunde
-    // ("zehn vor halb acht" = 19:20).
+    // Ab :25 bezieht sich die Angabe auf die kommende Stunde ("fuenf vor halb
+    // acht" = 19:25). Bei :20 nicht -- "zwanzig nach sieben" meint die
+    // laufende Stunde. Genau an dieser Grenze liegt der Unterschied zur
+    // frueheren halb-bezogenen Formulierung.
     uint8_t hour12 = hours % 12;
-    if (bucket >= 4) hour12 = uint8_t((hour12 + 1) % 12);
+    if (bucket >= 5) hour12 = uint8_t((hour12 + 1) % 12);
 
     const bool withUhr = (bucket == 0);
     s.push(hourWord(hour12, withUhr));

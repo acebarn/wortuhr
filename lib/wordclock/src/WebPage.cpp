@@ -44,10 +44,13 @@ button.danger{background:transparent;color:#e05252;border-color:#e05252}
 #msg{color:var(--mut);flex:1;font-size:.85rem}
 #status{font-size:.85rem;color:var(--mut);line-height:1.7}
 #status b{color:var(--fg);font-weight:500}
+#nav{margin-top:.5rem;font-size:.85rem}
+#nav a{color:var(--mut)}
 .dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;margin-right:.4rem}
 </style>
 <h1>Wortuhr</h1>
 <div id=status>lade&hellip;</div>
+<div id=nav><a href="/panel">Uhr ansehen</a></div>
 <div id=form></div>
 <div id=bar>
   <span id=msg></span>

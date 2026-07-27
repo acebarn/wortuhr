@@ -8,8 +8,8 @@
 //
 // Dialekt (fest, weil in die Frontplatte geschnitten):
 //   :45  DREIVIERTEL <naechste Stunde>   -- nicht "VIERTEL VOR"
-//   :20  ZEHN VOR HALB <naechste>        -- nicht "ZWANZIG NACH"
-//   :40  ZEHN NACH HALB <naechste>
+//   :20  ZWANZIG NACH <laufende Stunde>
+//   :40  ZWANZIG VOR <naechste Stunde>
 //   Stunde 1 heisst "EIN" nur zusammen mit UHR, sonst "EINS".
 
 namespace wordclock {
