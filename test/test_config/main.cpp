@@ -12,6 +12,7 @@
 #include <set>
 #include <string>
 
+#include "wordclock/Animator.h"
 #include "wordclock/ConfigJson.h"
 #include "wordclock/Profiles.h"
 
@@ -62,6 +63,19 @@ static void test_schema_is_consistent() {
             TEST_ASSERT_TRUE_MESSAGE(it.min == 0 && it.max == 1439,
                                      msg("%s: Uhrzeit 0..1439", it.key));
         }
+    }
+}
+
+// Der Stundenschlag waehlt aus einer Namensliste -- steht dort etwas, das der
+// Animator nicht kennt, liefe zur vollen Stunde nichts, ohne Fehlermeldung.
+static void test_chime_options_are_real_animations() {
+    const ConfigItem& item = schemaOf(ConfigKey::ChimeStyle);
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(kAnimPresetCount, item.optionCount,
+                                    "Auswahl und Presets muessen deckungsgleich sein");
+    for (uint8_t i = 0; i < item.optionCount; ++i) {
+        AnimKind k;
+        AnimParams p;
+        TEST_ASSERT_TRUE_MESSAGE(resolveAnim(item.options[i], k, p), item.options[i]);
     }
 }
 
@@ -180,16 +194,25 @@ static void test_schema_json_describes_every_item() {
 
     TEST_ASSERT_EQUAL_UINT8(kConfigCount, arr.size());
 
-    uint8_t withOptions = 0;
+    // Nicht auf eine feste Zahl festnageln -- sonst bricht der Test bei jeder
+    // neuen Auswahl-Einstellung, ohne dass etwas kaputt waere. Geprueft wird
+    // die Regel: genau die Choice-Eintraege tragen Optionen.
+    uint8_t i = 0;
     for (JsonObject o : arr) {
         TEST_ASSERT_TRUE(o["key"].is<const char*>());
         TEST_ASSERT_TRUE(o["type"].is<const char*>());
         TEST_ASSERT_TRUE(o["min"].is<int32_t>());
         TEST_ASSERT_TRUE(o["max"].is<int32_t>());
         TEST_ASSERT_TRUE(o["default"].is<int32_t>());
-        if (o["options"].is<JsonArray>()) ++withOptions;
+
+        const bool isChoice = kSchema[i].type == ConfigType::Choice;
+        TEST_ASSERT_EQUAL_MESSAGE(isChoice, o["options"].is<JsonArray>(),
+                                  msg("%s: Optionen passen nicht zum Typ", kSchema[i].key));
+        if (isChoice)
+            TEST_ASSERT_EQUAL_UINT8_MESSAGE(kSchema[i].optionCount,
+                                            o["options"].as<JsonArray>().size(), kSchema[i].key);
+        ++i;
     }
-    TEST_ASSERT_EQUAL_UINT8_MESSAGE(1, withOptions, "genau der Uebergang hat Optionen");
 }
 
 // --- Zeitfenster -----------------------------------------------------------
@@ -286,6 +309,7 @@ int main() {
     UNITY_BEGIN();
     RUN_TEST(test_schema_is_consistent);
     RUN_TEST(test_key_lookup_round_trips);
+    RUN_TEST(test_chime_options_are_real_animations);
     RUN_TEST(test_defaults_are_applied);
     RUN_TEST(test_values_are_clamped_never_rejected);
     RUN_TEST(test_dirty_only_on_real_change);

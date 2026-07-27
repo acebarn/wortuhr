@@ -150,6 +150,20 @@ int main(int argc, char** argv) {
     network.set(o.wifi, o.ap);
     mqtt.begin(o.broker, o.port, o.user, o.pass, "wortuhr-sim");
 
+    // Die Kommandozeile ist Erstbefuellung, genau wie secrets.h auf dem Geraet.
+    // Ohne das wuerde App::begin() die leeren gespeicherten Zugangsdaten in den
+    // Transport schieben und MQTT damit abschalten.
+    Secrets seed;
+    seed.set(SecretKey::WifiSsid, "Simulator");
+    seed.set(SecretKey::MqttHost, o.broker.c_str());
+    seed.set(SecretKey::MqttUser, o.user.c_str());
+    seed.set(SecretKey::MqttPass, o.pass.c_str());
+    {
+        char portBuf[8];
+        std::snprintf(portBuf, sizeof(portBuf), "%d", o.port);
+        seed.set(SecretKey::MqttPort, portBuf);
+    }
+
     Ports ports;
     ports.strip = &strip;
     ports.clock = &clock;
@@ -159,7 +173,7 @@ int main(int argc, char** argv) {
     ports.system = &system;
 
     App app(ports);
-    app.begin();
+    app.begin(&seed);
 
     sim::HttpServer http;
     static App* appPtr = &app;

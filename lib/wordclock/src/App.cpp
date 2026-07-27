@@ -155,12 +155,49 @@ void App::tick() {
     if (!stylesApplied_ || state != appliedState_ || config_.revision() != appliedRevision_)
         applyStyles(state);
 
+    // --- Animationen ------------------------------------------------------
+    //
+    // Sie ersetzen die Basis-Ebene, weil 110 Pixel gleichzeitig die Buchstaben
+    // sind. Im Nacht- und Aus-Zustand unterbleiben sie (DESIGN 7.2).
+    const bool mayAnimate = (state == DisplayState::Day) && !health.wordFieldDark;
+
+    if (mayAnimate && config_.getBool(ConfigKey::ChimeEnabled) && minutes == 0 &&
+        hours != lastChimeHour_) {
+        lastChimeHour_ = hours;
+        const uint8_t idx = config_.getU8(ConfigKey::ChimeStyle);
+        if (animator_.startByName(kChimeOptions[idx < 8 ? idx : 0], nowMs))
+            chimeUntilMs_ = nowMs + uint32_t(config_.getU16(ConfigKey::ChimeSeconds)) * 1000;
+    }
+    if (minutes != 0) lastChimeHour_ = 0xFF;
+
+    // Von HomeAssistant ausgeloest -- laeuft, solange der Kanal oben liegt.
+    const char* wanted = notify_.activeAnimation();
+    if (wanted && mayAnimate) {
+        if (!animator_.running() || lastAnimName_ != wanted) {
+            animator_.startByName(wanted, nowMs);
+            lastAnimName_ = wanted;
+            chimeUntilMs_ = 0;  // laeuft ohne Frist
+        }
+    } else if (chimeUntilMs_ && int32_t(nowMs - chimeUntilMs_) >= 0) {
+        animator_.stop();
+        chimeUntilMs_ = 0;
+    } else if (!wanted && !chimeUntilMs_) {
+        animator_.stop();
+        lastAnimName_ = nullptr;
+    }
+    if (!mayAnimate) {
+        animator_.stop();
+        chimeUntilMs_ = 0;
+    }
+
     Frame base;
     base.clear();
 
     // Ohne je gestellte Zeit bleibt das Wortfeld dunkel -- lieber nichts als
     // etwas Erfundenes (DESIGN 5).
-    if (!health.wordFieldDark && !panelOff)
+    if (animator_.running())
+        animator_.render(base, nowMs);
+    else if (!health.wordFieldDark && !panelOff)
         clockRenderer_.render(base, hours, minutes, nowMs);
 
     dotRenderer_.render(base, health, minutes, nowMs, panelOff);
@@ -178,6 +215,7 @@ void App::tick() {
     snapshot_.state = state;
     snapshot_.health = health;
     snapshot_.currentMa = estimateCurrentMa(out);
+    snapshot_.animating = animator_.running();
     ++snapshot_.frames;
 
     if (nowMs - lastDiagMs_ >= kDiagIntervalMs) {

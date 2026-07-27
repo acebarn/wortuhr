@@ -1,5 +1,6 @@
 #pragma once
 
+#include "wordclock/Animator.h"
 #include "wordclock/ClockRenderer.h"
 #include "wordclock/Compositor.h"
 #include "wordclock/DotRenderer.h"
@@ -28,6 +29,7 @@ public:
         HealthState health;
         uint32_t currentMa = 0;
         uint32_t frames = 0;
+        bool animating = false;
     };
 
     explicit App(const Ports& ports) : ports_(ports) {}
@@ -70,6 +72,7 @@ private:
     WebApi webApi_;
 
     ClockRenderer clockRenderer_;
+    Animator animator_;
     DotRenderer dotRenderer_;
     Compositor compositor_;
     NotifyStack notify_;
@@ -91,6 +94,11 @@ private:
     uint32_t lastChangeRevision_ = 0;
     uint32_t lastChangeMs_ = 0;
     uint32_t lastSecretRevision_ = 0;
+
+    // Stundenschlag: laeuft einmal je voller Stunde, nicht bei jedem Bild.
+    uint8_t lastChimeHour_ = 0xFF;
+    uint32_t chimeUntilMs_ = 0;
+    const char* lastAnimName_ = nullptr;
 };
 
 inline constexpr uint32_t kAutosaveQuietMs = 3000;

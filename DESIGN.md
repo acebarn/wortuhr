@@ -236,9 +236,15 @@ dieselben Bausteine, andere Dauer und Deckung.
 | `sparkle` | Dichte, Abklingzeit, Palette |
 | `fire` | eigenes Wärmemodell — aus den anderen nicht darstellbar |
 
-**Presets** (`matrix`, `nordlicht`, `silvester`, `sonnenaufgang`) sind benannte
-Parameterbündel als Tabelle in der Firmware, kein eigener Code. HA kann jeden
-Parameter einzeln überschreiben.
+**Presets** (`matrix`, `nordlicht`, `silvester`, `sonnenaufgang`, `feuer`,
+`welle`, `tropfen`, `plasma`) sind benannte Parameterbündel als Tabelle in der
+Firmware, kein eigener Code.
+
+> **Teilweise umgesetzt:** Das Design sagt, *ein* Primitivsatz speise alle drei
+> Rollen. Stundenschlag und Dauermodus teilen sich den `Animator`. Der
+> Minutenübergang arbeitet weiterhin eigenständig im `ClockRenderer` — er wirkt
+> auf die Buchstaben der Wortkette, die Animationen auf die ganze Fläche. Das
+> zusammenzuführen hieße, Primitiven eine Deckungsmaske zu geben; verschoben.
 
 ### 7.4 Geparkt
 

@@ -1,0 +1,297 @@
+// Host-Tests fuer die Animations-Primitive.
+//
+//   pio test -e native
+
+#include <unity.h>
+
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
+#include <set>
+#include <string>
+
+#include "wordclock/Animator.h"
+
+using namespace wordclock;
+
+void setUp(void) {}
+void tearDown(void) {}
+
+static char g_msg[256];
+static const char* msg(const char* fmt, ...) {
+    va_list a;
+    va_start(a, fmt);
+    std::vsnprintf(g_msg, sizeof(g_msg), fmt, a);
+    va_end(a);
+    return g_msg;
+}
+
+static uint16_t litCells(const Frame& f) {
+    uint16_t n = 0;
+    for (uint16_t c = 0; c < kLetterCount; ++c)
+        if (f.cell(c) != kBlack) ++n;
+    return n;
+}
+
+// --- Rechenhilfen ----------------------------------------------------------
+
+static void test_sin8_shape() {
+    // Um 128 schwingend, Extremwerte bei einem und drei Vierteln.
+    TEST_ASSERT_UINT8_WITHIN(3, 128, sin8(0));
+    TEST_ASSERT_TRUE_MESSAGE(sin8(64) > 240, msg("Hochpunkt ist %u", sin8(64)));
+    TEST_ASSERT_UINT8_WITHIN(3, 128, sin8(128));
+    TEST_ASSERT_TRUE_MESSAGE(sin8(192) < 15, msg("Tiefpunkt ist %u", sin8(192)));
+
+    // Stetig: keine Spruenge groesser als ein Achtel des Wertebereichs.
+    for (int a = 0; a < 256; ++a) {
+        const int d = int(sin8(uint8_t((a + 1) & 0xFF))) - int(sin8(uint8_t(a)));
+        TEST_ASSERT_TRUE_MESSAGE(d < 32 && d > -32, msg("Sprung bei %d: %d", a, d));
+    }
+}
+
+// Kein rand(): Simulator und Geraet sollen dasselbe zeigen, und ein Test soll
+// wiederholbar sein.
+static void test_hash_is_deterministic_and_spread() {
+    TEST_ASSERT_EQUAL_UINT8(hash8(42), hash8(42));
+
+    uint16_t buckets[4] = {0, 0, 0, 0};
+    for (uint16_t i = 0; i < 1000; ++i) ++buckets[hash8(i) / 64];
+    for (uint8_t b = 0; b < 4; ++b)
+        TEST_ASSERT_TRUE_MESSAGE(buckets[b] > 150, msg("Viertel %u nur %u mal", b, buckets[b]));
+}
+
+// --- Aufloesung von Namen ---------------------------------------------------
+
+static void test_primitive_names_round_trip() {
+    for (uint8_t i = 0; i < kAnimKindCount; ++i) {
+        AnimKind k;
+        AnimParams p;
+        TEST_ASSERT_TRUE_MESSAGE(resolveAnim(animName(AnimKind(i)), k, p), animName(AnimKind(i)));
+        TEST_ASSERT_EQUAL_UINT8(i, uint8_t(k));
+    }
+    AnimKind k;
+    AnimParams p;
+    TEST_ASSERT_FALSE(resolveAnim("gibtsnicht", k, p));
+    TEST_ASSERT_FALSE(resolveAnim(nullptr, k, p));
+    TEST_ASSERT_FALSE(resolveAnim("", k, p));
+}
+
+// Ein Preset ist ein benanntes Parameterbuendel, kein eigener Code.
+static void test_presets_resolve_and_are_distinct() {
+    std::set<std::string> names;
+    for (uint8_t i = 0; i < kAnimPresetCount; ++i) {
+        const AnimPreset& pr = kAnimPresets[i];
+        TEST_ASSERT_TRUE_MESSAGE(names.insert(pr.name).second, msg("%s doppelt", pr.name));
+
+        AnimKind k;
+        AnimParams p;
+        TEST_ASSERT_TRUE_MESSAGE(resolveAnim(pr.name, k, p), pr.name);
+        TEST_ASSERT_TRUE_MESSAGE(k == pr.kind, pr.name);
+        TEST_ASSERT_TRUE_MESSAGE(p.speed == pr.params.speed, pr.name);
+    }
+    TEST_ASSERT_TRUE_MESSAGE(kAnimPresetCount >= 5, "es sollten mehrere Presets existieren");
+}
+
+// --- Verhalten aller Primitive ---------------------------------------------
+
+// Jedes Primitiv muss ueber die Zeit etwas zeigen, sich bewegen und dabei
+// niemals die Eckpunkte anfassen -- die gehoeren dem Gesundheitskanal.
+static void test_every_primitive_animates_and_spares_the_dots() {
+    for (uint8_t i = 0; i < kAnimKindCount; ++i) {
+        const AnimKind kind = AnimKind(i);
+        Animator a;
+        a.start(kind, AnimParams{}, 0);
+
+        Frame f;
+        f.clear();
+        for (uint8_t d = 0; d < kDotCount; ++d) f.setDot(d, {9, 8, 7});
+
+        uint16_t maxLit = 0;
+        std::set<std::string> seen;
+
+        for (uint32_t t = 0; t < 6000; t += 60) {
+            a.render(f, t);
+
+            for (uint8_t d = 0; d < kDotCount; ++d)
+                TEST_ASSERT_TRUE_MESSAGE(f.dot(d) == Rgb({9, 8, 7}),
+                                         msg("%s hat Punkt %u angefasst", animName(kind), d));
+
+            const uint16_t lit = litCells(f);
+            if (lit > maxLit) maxLit = lit;
+
+            std::string sig;
+            for (uint16_t c = 0; c < kLetterCount; c += 7)
+                sig += char('0' + (f.cell(c).r + f.cell(c).g + f.cell(c).b) / 96);
+            seen.insert(sig);
+        }
+
+        TEST_ASSERT_TRUE_MESSAGE(maxLit > 8, msg("%s zeigt fast nichts (%u Zellen)",
+                                                 animName(kind), maxLit));
+        TEST_ASSERT_TRUE_MESSAGE(seen.size() > 4, msg("%s bewegt sich kaum (%zu Bilder)",
+                                                      animName(kind), seen.size()));
+    }
+}
+
+static void test_nothing_is_drawn_before_start() {
+    Animator a;
+    Frame f;
+    f.clear();
+    f.fillLetters({40, 40, 40});
+    a.render(f, 1000);
+    TEST_ASSERT_EQUAL_UINT16_MESSAGE(kLetterCount, litCells(f),
+                                     "ohne Start darf nichts uebermalt werden");
+
+    a.start(AnimKind::Wave, AnimParams{}, 0);
+    a.stop();
+    a.render(f, 1000);
+    TEST_ASSERT_EQUAL_UINT16_MESSAGE(kLetterCount, litCells(f), "nach stop() ebenso");
+}
+
+static void test_speed_zero_stands_still() {
+    AnimParams p;
+    p.speed = 0;
+    Animator a;
+    a.start(AnimKind::Wave, p, 0);
+
+    Frame first, later;
+    first.clear();
+    later.clear();
+    a.render(first, 0);
+    a.render(later, 4000);
+
+    for (uint16_t c = 0; c < kLetterCount; ++c)
+        TEST_ASSERT_TRUE_MESSAGE(first.cell(c) == later.cell(c),
+                                 msg("Zelle %u bewegt sich trotz Tempo 0", c));
+}
+
+static void test_palette_is_respected() {
+    AnimParams p;
+    p.from = {255, 0, 0};
+    p.to = {255, 0, 0};  // beide rot -> nichts Gruenes oder Blaues darf auftauchen
+    Animator a;
+    a.start(AnimKind::Noise, p, 0);
+
+    Frame f;
+    f.clear();
+    for (uint32_t t = 0; t < 3000; t += 90) {
+        a.render(f, t);
+        for (uint16_t c = 0; c < kLetterCount; ++c) {
+            const Rgb v = f.cell(c);
+            TEST_ASSERT_EQUAL_UINT8_MESSAGE(0, v.g, msg("Zelle %u hat Gruenanteil", c));
+            TEST_ASSERT_EQUAL_UINT8_MESSAGE(0, v.b, msg("Zelle %u hat Blauanteil", c));
+        }
+    }
+}
+
+// Feuer ist unten heiss und oben kuehl -- genau das unterscheidet ein
+// Waermemodell von Rauschen mit Feuerpalette.
+static void test_fire_is_hotter_at_the_bottom() {
+    Animator a;
+    a.start(AnimKind::Fire, kAnimPresets[4].params, 0);
+
+    uint32_t bottom = 0, top = 0;
+    for (uint32_t t = 0; t < 4000; t += 80) {
+        Frame f;
+        f.clear();
+        a.render(f, t);
+        for (uint8_t x = 0; x < kWidth; ++x) {
+            const Rgb b = f.xy(x, kHeight - 1);
+            const Rgb u = f.xy(x, 0);
+            bottom += uint32_t(b.r) + b.g + b.b;
+            top += uint32_t(u.r) + u.g + u.b;
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(bottom > top * 2,
+                             msg("unten %u, oben %u -- kein Aufsteigen erkennbar",
+                                 unsigned(bottom), unsigned(top)));
+}
+
+// Herabfallende Spuren muessen sich abwaerts bewegen, nicht bloss blinken.
+static void test_fall_moves_downward() {
+    Animator a;
+    a.start(AnimKind::Fall, kAnimPresets[0].params, 0);
+
+    int32_t rising = 0, falling = 0;
+    int32_t prev[kWidth];
+    for (uint8_t x = 0; x < kWidth; ++x) prev[x] = -1;
+
+    for (uint32_t t = 0; t < 4000; t += 50) {
+        Frame f;
+        f.clear();
+        a.render(f, t);
+        for (uint8_t x = 0; x < kWidth; ++x) {
+            int32_t head = -1;
+            for (int8_t y = kHeight - 1; y >= 0; --y)
+                if (f.xy(x, uint8_t(y)) != kBlack) { head = y; break; }
+            if (head >= 0 && prev[x] >= 0) {
+                if (head > prev[x]) ++falling;
+                else if (head < prev[x]) ++rising;
+            }
+            prev[x] = head;
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(falling > rising * 2,
+                             msg("abwaerts %d, aufwaerts %d", falling, rising));
+}
+
+static void test_wipe_direction_matters() {
+    AnimParams down, up;
+    down.direction = 0;
+    up.direction = 1;
+
+    Animator a, b;
+    a.start(AnimKind::Wipe, down, 0);
+    b.start(AnimKind::Wipe, up, 0);
+
+    Frame fa, fb;
+    fa.clear();
+    fb.clear();
+    a.render(fa, 600);
+    b.render(fb, 600);
+
+    bool differs = false;
+    for (uint16_t c = 0; c < kLetterCount && !differs; ++c)
+        if (fa.cell(c) != fb.cell(c)) differs = true;
+    TEST_ASSERT_TRUE_MESSAGE(differs, "Richtung muss einen Unterschied machen");
+}
+
+// Der Simulator soll dasselbe zeigen wie das Geraet: gleiche Zeit, gleiches
+// Bild, ohne verstecktem Zustand.
+static void test_rendering_is_reproducible() {
+    for (uint8_t i = 0; i < kAnimKindCount; ++i) {
+        Animator a, b;
+        a.start(AnimKind(i), AnimParams{}, 0);
+        b.start(AnimKind(i), AnimParams{}, 0);
+
+        Frame fa, fb;
+        fa.clear();
+        fb.clear();
+        // b laeuft mit anderer Schrittweite zum selben Zeitpunkt.
+        a.render(fa, 2500);
+        for (uint32_t t = 0; t <= 2500; t += 125) b.render(fb, t);
+
+        for (uint16_t c = 0; c < kLetterCount; ++c)
+            TEST_ASSERT_TRUE_MESSAGE(fa.cell(c) == fb.cell(c),
+                                     msg("%s: Zelle %u haengt von der Schrittweite ab",
+                                         animName(AnimKind(i)), c));
+    }
+}
+
+// =============================================================================
+
+int main() {
+    UNITY_BEGIN();
+    RUN_TEST(test_sin8_shape);
+    RUN_TEST(test_hash_is_deterministic_and_spread);
+    RUN_TEST(test_primitive_names_round_trip);
+    RUN_TEST(test_presets_resolve_and_are_distinct);
+    RUN_TEST(test_every_primitive_animates_and_spares_the_dots);
+    RUN_TEST(test_nothing_is_drawn_before_start);
+    RUN_TEST(test_speed_zero_stands_still);
+    RUN_TEST(test_palette_is_respected);
+    RUN_TEST(test_fire_is_hotter_at_the_bottom);
+    RUN_TEST(test_fall_moves_downward);
+    RUN_TEST(test_wipe_direction_matters);
+    RUN_TEST(test_rendering_is_reproducible);
+    return UNITY_END();
+}

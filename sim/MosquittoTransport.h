@@ -27,8 +27,9 @@ public:
         user_ = user;
         pass_ = pass;
         enabled_ = !host.empty();
-        if (!enabled_) return false;
 
+        // Client immer anlegen: der Broker kann spaeter ueber applyBroker
+        // kommen, und dann muss das Objekt schon stehen.
         mosquitto_lib_init();
         mosq_ = mosquitto_new(clientId.c_str(), /*clean_session=*/true, this);
         if (!mosq_) {
