@@ -6,6 +6,8 @@
 #include <sstream>
 #include <string>
 
+#include <vector>
+
 #include <ArduinoJson.h>
 
 #include "TerminalPanel.h"
@@ -93,10 +95,20 @@ public:
     bool connected() const override { return connected_; }
     bool apActive() const override { return ap_; }
     int rssi() const override { return connected_ ? -58 : 0; }
+    const char* ip() const override { return connected_ ? "127.0.0.1" : "192.168.4.1"; }
+
+    void applyCredentials(const char* ssid, const char* pass) override {
+        (void)pass;
+        ssid_ = ssid ? ssid : "";
+        std::printf("[wifi] Zugangsdaten uebernommen: \"%s\"\n", ssid_.c_str());
+        // Ohne WLAN-Namen geht im Ernstfall der AP auf.
+        if (ssid_.empty()) { connected_ = false; ap_ = true; }
+    }
 
 private:
     bool connected_ = true;
     bool ap_ = false;
+    std::string ssid_;
 };
 
 // --- Speicher --------------------------------------------------------------
@@ -151,7 +163,40 @@ public:
         return true;
     }
 
+    bool loadSecrets(wordclock::Secrets& sec) override {
+        std::ifstream in(secretPath());
+        if (!in) return false;
+        std::stringstream ss;
+        ss << in.rdbuf();
+        JsonDocument doc;
+        if (deserializeJson(doc, ss.str())) return false;
+        for (JsonPairConst kv : doc.as<JsonObjectConst>())
+            if (kv.value().is<const char*>())
+                sec.setByName(kv.key().c_str(), kv.value().as<const char*>());
+        sec.clearDirty();
+        std::printf("[cfg] Zugangsdaten geladen\n");
+        return true;
+    }
+
+    bool saveSecrets(wordclock::Secrets& sec) override {
+        JsonDocument doc;
+        JsonObject o = doc.to<JsonObject>();
+        for (uint8_t i = 0; i < wordclock::kSecretCount; ++i)
+            o[wordclock::kSecretSchema[i].key] = sec.get(wordclock::SecretKey(i));
+        std::string text;
+        serializeJson(doc, text);
+
+        const std::string tmp = secretPath() + ".tmp";
+        { std::ofstream out(tmp); if (!out) return false; out << text; }
+        std::remove(secretPath().c_str());
+        if (std::rename(tmp.c_str(), secretPath().c_str()) != 0) return false;
+        sec.clearDirty();
+        std::printf("[cfg] Zugangsdaten gespeichert\n");
+        return true;
+    }
+
 private:
+    std::string secretPath() const { return path_ + ".secrets"; }
     std::string path_;
     bool ok_ = true;
 };
@@ -160,13 +205,16 @@ private:
 
 class SimSystem : public wordclock::ISystemInfo {
 public:
-    uint32_t freeHeap() const override { return 44000; }  // plausibler Wert vom Geraet
+    uint32_t freeHeap() const override { return 36000; }  // plausibler Wert vom Geraet
     void log(const char* line) override { logs_.emplace_back(line); }
+    void restart() override { restartRequested_ = true; logs_.emplace_back("[sys] Neustart"); }
+    bool restartRequested() const { return restartRequested_; }
 
     std::vector<std::string>& logs() { return logs_; }
 
 private:
     std::vector<std::string> logs_;
+    bool restartRequested_ = false;
 };
 
 }  // namespace sim

@@ -407,7 +407,20 @@ für Details, Serial nur bei Entwicklung. Das UDP-Multicast-Logging entfällt.
 
 ---
 
+## 10a. Speicherlage (Stand: Webapp fertig)
+
+| | RAM | Flash |
+|---|---|---|
+| vor Webserver | 43,2 % | 33,9 % |
+| mit Webserver + mDNS | **56,0 %** | 39,7 % |
+
+~36 kB freier Heap. Der Sprung kommt von `ESP8266WebServer` und mDNS. Für den
+Betrieb reicht das, aber es ist der Posten, den weitere Features zuerst treffen.
+
+---
+
 ## 11. Offene Punkte
 
 - Digitaluhr: 3×4-Ziffer oder Farbtrennung
 - `glyph`-Primitiv: Format und Kodierung der 11×10-Bitmap
+- Webapp und AP sind noch **nie am Gerät gelaufen** — nur im Simulator geprüft

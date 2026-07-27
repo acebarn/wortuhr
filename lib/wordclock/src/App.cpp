@@ -2,13 +2,90 @@
 
 namespace wordclock {
 
-void App::begin() {
-    if (ports_.storage) ports_.storage->load(config_);
-    applyStyles(DisplayState::Day);
+void App::begin(const Secrets* seed) {
+    if (ports_.storage) {
+        ports_.storage->load(config_);
+        ports_.storage->loadSecrets(secrets_);
+    }
 
+    // Nur befuellen, was noch leer ist. Was einmal ueber die Webapp gesetzt
+    // wurde, darf ein Neuflashen nicht zurueckdrehen.
+    if (seed) {
+        for (uint8_t i = 0; i < kSecretCount; ++i) {
+            const SecretKey k = SecretKey(i);
+            if (!secrets_.isSet(k) && seed->isSet(k)) secrets_.set(k, seed->get(k));
+        }
+    }
+
+    applyStyles(DisplayState::Day);
+    webApi_.begin(&config_, &secrets_);
     mqtt_.begin(ports_.mqtt, &config_, &notify_, ports_.system);
 
+    if (ports_.network)
+        ports_.network->applyCredentials(secrets_.get(SecretKey::WifiSsid),
+                                         secrets_.get(SecretKey::WifiPass));
+    if (ports_.mqtt)
+        ports_.mqtt->applyBroker(secrets_.get(SecretKey::MqttHost), secrets_.mqttPort(),
+                                 secrets_.get(SecretKey::MqttUser),
+                                 secrets_.get(SecretKey::MqttPass));
+
     lastChangeRevision_ = config_.revision();
+    lastSecretRevision_ = secrets_.revision();
+}
+
+void App::refreshWebStatus() {
+    WebStatus st;
+    st.health = snapshot_.health;
+    st.hours = snapshot_.hours;
+    st.minutes = snapshot_.minutes;
+    st.displayState = snapshot_.state;
+    st.wifiConnected = ports_.network ? ports_.network->connected() : false;
+    st.apActive = ports_.network ? ports_.network->apActive() : false;
+    st.rssi = ports_.network ? ports_.network->rssi() : 0;
+    st.mqttEnabled = mqtt_.enabled();
+    st.mqttConnected = mqtt_.connected();
+    st.heap = ports_.system ? ports_.system->freeHeap() : 0;
+    st.uptimeS = ports_.clock ? ports_.clock->nowMs() / 1000 : 0;
+    if (ports_.network) st.ip = ports_.network->ip();
+    webApi_.setStatus(st);
+}
+
+void App::applyWebAction(WebAction action) {
+    switch (action) {
+        case WebAction::None:
+            break;
+
+        case WebAction::ReconnectWifi:
+            if (ports_.storage) ports_.storage->saveSecrets(secrets_);
+            if (ports_.network)
+                ports_.network->applyCredentials(secrets_.get(SecretKey::WifiSsid),
+                                                 secrets_.get(SecretKey::WifiPass));
+            break;
+
+        case WebAction::ReconnectMqtt:
+            if (ports_.storage) ports_.storage->saveSecrets(secrets_);
+            if (ports_.mqtt)
+                ports_.mqtt->applyBroker(secrets_.get(SecretKey::MqttHost), secrets_.mqttPort(),
+                                         secrets_.get(SecretKey::MqttUser),
+                                         secrets_.get(SecretKey::MqttPass));
+            break;
+
+        case WebAction::FactoryReset:
+            config_.reset();
+            secrets_.reset();
+            if (ports_.storage) {
+                ports_.storage->save(config_);
+                ports_.storage->saveSecrets(secrets_);
+            }
+            if (ports_.system) ports_.system->restart();
+            break;
+
+        case WebAction::Restart:
+            // Ausstehende Aenderungen nicht verlieren.
+            if (ports_.storage && config_.dirty()) ports_.storage->save(config_);
+            if (ports_.system) ports_.system->restart();
+            break;
+    }
 }
 
 void App::applyStyles(DisplayState state) {
@@ -35,6 +112,14 @@ HealthInputs App::gatherHealth() {
 
 void App::autosave(uint32_t nowMs) {
     if (!ports_.storage) return;
+
+    // Zugangsdaten sofort sichern, nicht entprellt: sie werden selten und
+    // bewusst geaendert, und ein Verlust waere teuer. Zuerst geprueft, damit
+    // eine gleichzeitige Konfigurationsaenderung sie nicht ueberspringt.
+    if (secrets_.revision() != lastSecretRevision_) {
+        lastSecretRevision_ = secrets_.revision();
+        if (secrets_.dirty()) ports_.storage->saveSecrets(secrets_);
+    }
 
     const uint32_t rev = config_.revision();
     if (rev != lastChangeRevision_) {  // es hat sich gerade wieder etwas geruehrt

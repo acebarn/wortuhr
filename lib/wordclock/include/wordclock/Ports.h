@@ -4,6 +4,7 @@
 
 #include "wordclock/Config.h"
 #include "wordclock/Frame.h"
+#include "wordclock/Secrets.h"
 
 namespace wordclock {
 
@@ -38,6 +39,11 @@ struct INetwork {
     virtual bool connected() const = 0;
     virtual bool apActive() const = 0;
     virtual int rssi() const = 0;
+    virtual const char* ip() const { return ""; }
+
+    // Neue Zugangsdaten uebernehmen und sofort versuchen. Ohne das muesste man
+    // nach dem Eintippen raten, ob sie stimmen.
+    virtual void applyCredentials(const char* ssid, const char* pass) = 0;
 };
 
 struct IStorage {
@@ -45,6 +51,11 @@ struct IStorage {
     virtual bool ok() const = 0;
     virtual bool load(Config& cfg) = 0;
     virtual bool save(Config& cfg) = 0;
+
+    // Zugangsdaten liegen in einer eigenen Datei: ein Werksreset der Anzeige
+    // soll die WLAN-Verbindung nicht mitnehmen -- und umgekehrt.
+    virtual bool loadSecrets(Secrets& sec) = 0;
+    virtual bool saveSecrets(Secrets& sec) = 0;
 };
 
 // Rohes MQTT. Kennt weder Topics noch Nutzlasten der Uhr -- was gesendet und
@@ -69,6 +80,9 @@ struct IMqttTransport {
     virtual void setWill(const char* topic, const char* payload) = 0;
     virtual bool subscribe(const char* topic) = 0;
     virtual bool publish(const char* topic, const char* payload, bool retained) = 0;
+
+    virtual void applyBroker(const char* host, uint16_t port, const char* user,
+                             const char* pass) = 0;
 };
 
 // Nur fuer die Diagnose.
@@ -76,6 +90,7 @@ struct ISystemInfo {
     virtual ~ISystemInfo() = default;
     virtual uint32_t freeHeap() const = 0;
     virtual void log(const char* line) = 0;
+    virtual void restart() {}
 };
 
 struct Ports {

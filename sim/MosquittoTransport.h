@@ -55,6 +55,18 @@ public:
         if (enabled_) mosquitto_lib_cleanup();
     }
 
+    void applyBroker(const char* host, uint16_t port, const char* user,
+                     const char* pass) override {
+        if (host && *host && host_ != host) {
+            std::printf("[mqtt] Broker gewechselt: %s:%u\n", host, port);
+        }
+        if (host) host_ = host;
+        if (user) user_ = user;
+        if (pass) pass_ = pass;
+        port_ = port;
+        enabled_ = !host_.empty();
+    }
+
     bool enabled() const override { return enabled_; }
     bool connected() const override { return connected_; }
     void setListener(Listener* l) override { listener_ = l; }

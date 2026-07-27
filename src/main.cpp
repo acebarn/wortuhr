@@ -34,6 +34,8 @@ DeviceNetwork network;
 DeviceStorage storage;
 DeviceMqtt mqttTransport;
 DeviceSystem systemInfo;
+DeviceWeb web;
+BootGuard bootGuard;
 
 Ports makePorts() {
     Ports p;
@@ -104,6 +106,7 @@ void setup() {
 
     strip.begin();
     storage.begin();
+    bootGuard.begin();
 
 #ifdef DOT_MAPPING_TEST
     runMappingTest();
@@ -111,21 +114,44 @@ void setup() {
 
     // Ab hier wird NICHTS mehr blockiert: loop() wird immer erreicht, auch
     // ohne WLAN. Die Uhr bleibt unter allen Umstaenden eine Uhr (DESIGN 9.1).
-    network.begin(WIFI_SSID, WIFI_PASS);
     deviceClock.begin();
-    mqttTransport.begin(MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS);
-    Serial.printf("[mqtt] %s\n", mqttTransport.enabled() ? "eingerichtet" : "nicht eingerichtet");
+    mqttTransport.begin();
 
-    app.begin();
+    // secrets.h ist nur Erstbefuellung: was einmal ueber die Webapp gesetzt
+    // wurde, darf ein Neuflashen nicht zurueckdrehen.
+    Secrets seed;
+    seed.set(SecretKey::WifiSsid, WIFI_SSID);
+    seed.set(SecretKey::WifiPass, WIFI_PASS);
+    seed.set(SecretKey::MqttHost, MQTT_HOST);
+    seed.set(SecretKey::MqttUser, MQTT_USER);
+    seed.set(SecretKey::MqttPass, MQTT_PASS);
+    { char portBuf[8]; snprintf(portBuf, sizeof(portBuf), "%d", MQTT_PORT);
+      seed.set(SecretKey::MqttPort, portBuf); }
+
+    app.begin(&seed);
+    web.begin(&app.web());
+
+    if (bootGuard.triggered()) {
+        Serial.println("[boot] fuenf abgebrochene Starts -> Werksreset");
+        app.applyWebAction(WebAction::FactoryReset);
+    }
     Serial.println("[setup] fertig, loop laeuft");
 }
 
 void loop() {
+    const uint32_t nowMs = millis();
+
     network.poll();
     deviceClock.poll();
+    web.poll();
+    bootGuard.poll(nowMs);
     app.tick();
 
-    const uint32_t nowMs = millis();
+    // Erst antworten, dann handeln -- sonst saehe der Browser keine
+    // Bestaetigung.
+    app.refreshWebStatus();
+    app.applyWebAction(web.takeAction());
+
     if (nowMs - lastStatusMs >= kStatusIntervalMs) {
         lastStatusMs = nowMs;
         static const char* kStateName[] = {"tag", "nacht", "aus"};

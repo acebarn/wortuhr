@@ -8,6 +8,8 @@
 #include "wordclock/Notify.h"
 #include "wordclock/Ports.h"
 #include "wordclock/Profiles.h"
+#include "wordclock/Secrets.h"
+#include "wordclock/WebApi.h"
 
 namespace wordclock {
 
@@ -30,13 +32,25 @@ public:
 
     explicit App(const Ports& ports) : ports_(ports) {}
 
-    void begin();
+    // `seed` wird nur benutzt, wenn noch keine Zugangsdaten gespeichert sind --
+    // damit ein frisch geflashtes Geraet ohne AP-Einrichtung hochkommt, sobald
+    // in secrets.h etwas steht.
+    void begin(const Secrets* seed = nullptr);
 
     // Muss regelmaessig laufen. Zeichnet hoechstens alle kFrameIntervalMs ein
     // Bild, kuemmert sich sonst um Netz, Zeit und Speicher.
     void tick();
 
     Config& config() { return config_; }
+    Secrets& secrets() { return secrets_; }
+    WebApi& web() { return webApi_; }
+
+    // Antwort der Webapp ausfuehren. Bewusst NACH dem Senden der Antwort --
+    // sonst saehe der Browser nie eine Bestaetigung.
+    void applyWebAction(WebAction action);
+
+    // Fuellt WebApi mit dem aktuellen Zustand. Vor jeder Anfrage aufrufen.
+    void refreshWebStatus();
     NotifyStack& notifications() { return notify_; }
     MqttService& mqtt() { return mqtt_; }
     const Snapshot& snapshot() const { return snapshot_; }
@@ -52,6 +66,8 @@ private:
 
     Ports ports_;
     Config config_;
+    Secrets secrets_;
+    WebApi webApi_;
 
     ClockRenderer clockRenderer_;
     DotRenderer dotRenderer_;
@@ -74,6 +90,7 @@ private:
     // Aenderung -- sonst schriebe ein gezogener Schieberegler mitten im Ziehen.
     uint32_t lastChangeRevision_ = 0;
     uint32_t lastChangeMs_ = 0;
+    uint32_t lastSecretRevision_ = 0;
 };
 
 inline constexpr uint32_t kAutosaveQuietMs = 3000;

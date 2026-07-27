@@ -61,16 +61,28 @@ struct FakeClock : IClock {
 
 struct FakeNetwork : INetwork {
     bool up = true, ap = false;
+    std::string ssid, pass;
+    uint32_t applyCalls = 0;
+
     bool connected() const override { return up; }
     bool apActive() const override { return ap; }
     int rssi() const override { return -60; }
+    const char* ip() const override { return "192.168.1.42"; }
+    void applyCredentials(const char* s, const char* p) override {
+        ssid = s ? s : "";
+        pass = p ? p : "";
+        ++applyCalls;
+    }
 };
 
 struct FakeStorage : IStorage {
     Config stored;
+    Secrets storedSecrets;
     bool healthy = true;
     bool hasFile = false;
+    bool hasSecrets = false;
     uint32_t saves = 0;
+    uint32_t secretSaves = 0;
 
     bool ok() const override { return healthy; }
     bool load(Config& cfg) override {
@@ -85,12 +97,26 @@ struct FakeStorage : IStorage {
         ++saves;
         return true;
     }
+    bool loadSecrets(Secrets& sec) override {
+        if (!hasSecrets) return false;
+        sec = storedSecrets;
+        sec.clearDirty();
+        return true;
+    }
+    bool saveSecrets(Secrets& sec) override {
+        storedSecrets = sec;
+        sec.clearDirty();
+        ++secretSaves;
+        return true;
+    }
 };
 
 struct FakeSystem : ISystemInfo {
     std::vector<std::string> lines;
+    uint32_t restarts = 0;
     uint32_t freeHeap() const override { return 40000; }
     void log(const char* l) override { lines.emplace_back(l); }
+    void restart() override { ++restarts; }
 };
 
 struct Rig {

@@ -14,6 +14,7 @@
 #include <string>
 #include <thread>
 
+#include "HttpServer.h"
 #include "MosquittoTransport.h"
 #include "SimAdapters.h"
 #include "TerminalPanel.h"
@@ -39,6 +40,7 @@ struct Options {
     bool ap = false;
     bool headless = false;
     int fps = 10;
+    int httpPort = 8080;
 };
 
 void usage() {
@@ -60,7 +62,8 @@ void usage() {
   --ap              AP-Modus melden
   --no-sync         nie synchronisiert (Wortfeld bleibt dunkel)
   --sync-age N      Sekunden seit letztem Sync
-  --headless        kein Panel zeichnen, nur Protokoll
+  --headless        kein Panel im Terminal, nur Protokoll
+  --http N          Port der Weboberflaeche      Vorgabe: 8080
 
   --help
 
@@ -71,6 +74,11 @@ Steuern laesst sich der laufende Simulator ueber MQTT, genau wie die Uhr:
   mosquitto_pub -t wortuhr/set/ghost -m 30
   mosquitto_pub -t wortuhr/notify \
       -m '{"id":"fenster","style":"tint","color":[0,180,255],"ttl":20}'
+
+Im Browser:
+
+  http://localhost:8080/panel     Wortuhr-Ansicht wie an der Wand
+  http://localhost:8080/          Fallback-Konfigurationsseite
 
 Mitlesen, was HomeAssistant empfangen wuerde:
 
@@ -96,6 +104,7 @@ bool parseArgs(int argc, char** argv, Options& o) {
         else if (a == "--no-sync") o.synced = false;
         else if (a == "--sync-age") o.syncAge = uint32_t(std::atol(next()));
         else if (a == "--headless") o.headless = true;
+        else if (a == "--http") o.httpPort = std::atoi(next());
         else if (a == "--start") {
             int h = 7, m = 28;
             std::sscanf(next(), "%d:%d", &h, &m);
@@ -152,6 +161,16 @@ int main(int argc, char** argv) {
     App app(ports);
     app.begin();
 
+    sim::HttpServer http;
+    static App* appPtr = &app;
+    const bool httpOk = http.begin(o.httpPort, &app.web(), &strip.last(),
+                                   [](wordclock::WebAction a, void*) { appPtr->applyWebAction(a); });
+    if (httpOk)
+        std::printf("Weboberflaeche: http://localhost:%d/panel  (Einstellungen unter /)\n",
+                    o.httpPort);
+    else
+        std::printf("Weboberflaeche konnte Port %d nicht belegen\n", o.httpPort);
+
     std::printf("Simulator laeuft. Broker: %s  Zeitraffer: %.0fx  Strg-C beendet.\n",
                 o.broker.empty() ? "(aus)" : o.broker.c_str(), o.speed);
 
@@ -162,6 +181,8 @@ int main(int argc, char** argv) {
     while (!g_stop) {
         clock.poll();
         app.tick();
+        app.refreshWebStatus();
+        http.poll();
 
         // Protokollzeilen erscheinen oberhalb des Panels, damit sie beim
         // Ueberzeichnen nicht verlorengehen.
