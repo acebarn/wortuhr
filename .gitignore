@@ -8,3 +8,6 @@
 # Zugangsdaten gehoeren nicht ins Repo
 secrets.h
 data/config.json
+
+# Laufzeitdateien des Simulators
+sim-config.json*

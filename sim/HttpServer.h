@@ -64,11 +64,21 @@ public:
 
     int port() const { return port_; }
 
+    // Alle wartenden Verbindungen abarbeiten, nicht nur eine.
+    //
+    // Bei einer pro Durchlauf wuerde die Seite den Server ueberholen: sie
+    // fragt zweimal je 100 ms, die Schleife laeuft aber nur zehnmal je
+    // Sekunde. Der Rueckstau waechst, und die Ansicht bleibt stehen.
     void poll() {
         if (listen_ < 0 || !api_) return;
+        for (int i = 0; i < 16; ++i)
+            if (!serveOne()) break;
+    }
 
+private:
+    bool serveOne() {
         const int client = ::accept(listen_, nullptr, nullptr);
-        if (client < 0) return;
+        if (client < 0) return false;
 
         std::string raw;
         char chunk[2048];
@@ -84,7 +94,7 @@ public:
         }
         if (raw.empty()) {
             ::close(client);
-            return;
+            return true;
         }
 
         std::string method, path, body;
@@ -94,13 +104,13 @@ public:
         if (path == "/panel") {
             send(client, 200, "text/html", panelPage(), std::strlen(panelPage()));
             ::close(client);
-            return;
+            return true;
         }
         if (path == "/api/frame" && frame_) {
             const std::string json = frameJson(*frame_);
             send(client, 200, "application/json", json.c_str(), json.size());
             ::close(client);
-            return;
+            return true;
         }
 
         wordclock::WebRequest req{method.c_str(), path.c_str(), body.c_str()};
@@ -116,9 +126,9 @@ public:
         ::close(client);
 
         if (action != wordclock::WebAction::None && onAction_) onAction_(action, ctx_);
+        return true;
     }
 
-private:
     static size_t contentLength(const std::string& raw) {
         const size_t p = raw.find("Content-Length:");
         if (p == std::string::npos) return 0;
