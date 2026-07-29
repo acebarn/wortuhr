@@ -185,7 +185,7 @@ void App::tick() {
         hours != lastChimeHour_) {
         lastChimeHour_ = hours;
         const uint8_t idx = config_.getU8(ConfigKey::ChimeStyle);
-        if (animator_.startByName(kChimeOptions[idx < 8 ? idx : 0], nowMs))
+        if (animator_.startByName(kChimeOptions[idx < kChimeOptionCount ? idx : 0], nowMs))
             chimeUntilMs_ = nowMs + uint32_t(config_.getU16(ConfigKey::ChimeSeconds)) * 1000;
     }
     if (minutes != 0) lastChimeHour_ = 0xFF;

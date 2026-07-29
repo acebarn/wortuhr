@@ -6,6 +6,8 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <set>
 #include <string>
@@ -249,6 +251,118 @@ static void test_fall_moves_downward() {
                              msg("abwaerts %d, aufwaerts %d", falling, rising));
 }
 
+// Ein Regenbogen muss das Spektrum zeigen, nicht bloss zwei Farben -- und der
+// Uebergang ueber den Nullpunkt muss stetig sein, sonst steht eine Naht im Bild.
+static void test_hue8_covers_the_spectrum_without_a_seam() {
+    TEST_ASSERT_TRUE_MESSAGE(hue8(0).r > 250 && hue8(0).g < 5 && hue8(0).b < 5, "0 ist nicht rot");
+    TEST_ASSERT_TRUE_MESSAGE(hue8(85).g > 250 && hue8(85).r < 10, "85 ist nicht gruen");
+    TEST_ASSERT_TRUE_MESSAGE(hue8(170).b > 250 && hue8(170).g < 10, "170 ist nicht blau");
+
+    for (int h = 0; h < 256; ++h) {
+        const Rgb a = hue8(uint8_t(h)), b = hue8(uint8_t((h + 1) & 0xFF));
+        const int d = std::abs(int(a.r) - b.r) + std::abs(int(a.g) - b.g) + std::abs(int(a.b) - b.b);
+        TEST_ASSERT_TRUE_MESSAGE(d < 24, msg("Farbsprung bei %d: %d", h, d));
+    }
+}
+
+// Das Farbwabern quillt aus der Mitte: verfolgt man einen Ring einer festen
+// Farbe, wandert er nach aussen. Gemessen am mittleren Abstand aller roten
+// Zellen -- ein einzelner Punkt liefe dem Wabern hinterher, der Mittelwert
+// nicht.
+static void test_rainbow_flows_outward() {
+    AnimKind kind;
+    AnimParams p;
+    TEST_ASSERT_TRUE(resolveAnim("regenbogen", kind, p));
+    TEST_ASSERT_TRUE(kind == AnimKind::Rainbow);
+
+    Animator a;
+    a.start(kind, p, 0);
+
+    int outward = 0, inward = 0;
+    double prev = -1;
+
+    for (uint32_t t = 0; t < 60000; t += 100) {
+        Frame f;
+        f.clear();
+        a.render(f, t);
+
+        double sum = 0;
+        int n = 0;
+        for (uint8_t y = 0; y < kHeight; ++y) {
+            for (uint8_t x = 0; x < kWidth; ++x) {
+                const Rgb v = f.xy(x, y);
+                if (v.r < 150 || v.g > 50 || v.b > 50) continue;  // nicht rot
+                const double dx = double(x) - p.originX, dy = double(y) - p.originY;
+                sum += std::sqrt(dx * dx + dy * dy);
+                ++n;
+            }
+        }
+        if (!n) {  // gerade kein Rot auf der Flaeche
+            prev = -1;
+            continue;
+        }
+
+        const double mean = sum / n;
+        // Springt der Ring, ist er hinten aus der Flaeche gelaufen und vorn neu
+        // entstanden -- kein Ruecklauf, sondern der naechste Durchgang.
+        if (prev >= 0 && std::fabs(mean - prev) < 0.6) {
+            if (mean > prev) ++outward;
+            else if (mean < prev) ++inward;
+        }
+        prev = mean;
+    }
+
+    TEST_ASSERT_TRUE_MESSAGE(outward > inward * 3,
+                             msg("nach aussen %d, nach innen %d", outward, inward));
+}
+
+// Ein echtes Spektrum, nicht zwei Stuetzfarben: ueber die Zeit muss jede
+// Grundfarbe einmal fuehren.
+static void test_rainbow_shows_the_whole_spectrum() {
+    AnimKind kind;
+    AnimParams p;
+    TEST_ASSERT_TRUE(resolveAnim("regenbogen", kind, p));
+    Animator a;
+    a.start(kind, p, 0);
+
+    bool red = false, green = false, blue = false;
+    for (uint32_t t = 0; t < 60000; t += 200) {
+        Frame f;
+        f.clear();
+        a.render(f, t);
+        for (uint16_t c = 0; c < kLetterCount; ++c) {
+            const Rgb v = f.cell(c);
+            if (v.r > 150 && v.g < 50 && v.b < 50) red = true;
+            if (v.g > 150 && v.r < 50 && v.b < 50) green = true;
+            if (v.b > 150 && v.r < 50 && v.g < 50) blue = true;
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(red && green && blue,
+                             msg("rot %d, gruen %d, blau %d", red, green, blue));
+}
+
+// Der Regenbogen darf nicht zwischendurch nach Schwarz laufen: dann faellt die
+// Flaeche in Loecher, und genau die Farben verschwinden, wegen derer man ihn
+// gewaehlt hat.
+static void test_rainbow_stays_bright() {
+    AnimKind k;
+    AnimParams p;
+    TEST_ASSERT_TRUE(resolveAnim("regenbogen", k, p));
+    Animator a;
+    a.start(k, p, 0);
+
+    for (uint32_t t = 0; t < 20000; t += 310) {
+        Frame f;
+        f.clear();
+        a.render(f, t);
+        for (uint16_t c = 0; c < kLetterCount; ++c) {
+            const Rgb v = f.cell(c);
+            const uint8_t m = valueOf(v);
+            TEST_ASSERT_TRUE_MESSAGE(m > 150, msg("Zelle %u nur %u hell bei t=%u", c, m, unsigned(t)));
+        }
+    }
+}
+
 static void test_wipe_direction_matters() {
     AnimParams down, up;
     down.direction = 0;
@@ -306,6 +420,10 @@ int main() {
     RUN_TEST(test_palette_is_respected);
     RUN_TEST(test_fire_is_hotter_at_the_bottom);
     RUN_TEST(test_fall_moves_downward);
+    RUN_TEST(test_hue8_covers_the_spectrum_without_a_seam);
+    RUN_TEST(test_rainbow_flows_outward);
+    RUN_TEST(test_rainbow_shows_the_whole_spectrum);
+    RUN_TEST(test_rainbow_stays_bright);
     RUN_TEST(test_wipe_direction_matters);
     RUN_TEST(test_rendering_is_reproducible);
     return UNITY_END();

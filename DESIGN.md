@@ -235,10 +235,17 @@ dieselben Bausteine, andere Dauer und Deckung.
 | `noise` | Skalierung, Tempo, Palette |
 | `sparkle` | Dichte, Abklingzeit, Palette |
 | `fire` | eigenes Wärmemodell — aus den anderen nicht darstellbar |
+| `rainbow` | Ursprung, Tempo, Waberstärke — eigene Palette: das Spektrum |
+
+`rainbow` ist das einzige Primitiv ohne Stützfarben. Zwei Farben können einen
+Regenbogen nicht beschreiben; `from`/`to` bleiben dort wirkungslos. Es ist auch
+kein `ripple` mit anderer Palette: der Abstand zum Ursprung wird von zwei
+ungleich schnellen Wellen verbogen, bevor daraus ein Farbton wird — deshalb
+wabern die Ringe, statt bloß zu pulsieren.
 
 **Presets** (`matrix`, `nordlicht`, `silvester`, `sonnenaufgang`, `feuer`,
-`welle`, `tropfen`, `plasma`) sind benannte Parameterbündel als Tabelle in der
-Firmware, kein eigener Code.
+`welle`, `tropfen`, `plasma`, `regenbogen`) sind benannte Parameterbündel als
+Tabelle in der Firmware, kein eigener Code.
 
 > **Teilweise umgesetzt:** Das Design sagt, *ein* Primitivsatz speise alle drei
 > Rollen. Stundenschlag und Dauermodus teilen sich den `Animator`. Der

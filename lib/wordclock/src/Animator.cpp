@@ -53,6 +53,27 @@ uint8_t hash8(uint16_t x) {
     return uint8_t(h >> 24);
 }
 
+// Sechs lineare Rampen. Die Sektorbreite wird gerechnet und nicht auf 43
+// gerundet, sonst klaffte am Wechsel von 255 nach 0 eine Luecke von rund einem
+// Drittel Blau -- auf der Frontplatte ein stehender Strich, genau dort, wo der
+// Regenbogen nahtlos wirken soll.
+//
+// Bewusst ohne Helligkeitsausgleich fuer Gelb und Cyan: die Milchglasscheibe
+// mischt ohnehin, und ein Ausgleich kostet jede Zelle eine weitere Rechnung.
+Rgb hue8(uint8_t h) {
+    const uint16_t s = uint16_t(h) * 6;
+    const uint8_t sector = uint8_t(s >> 8);
+    const uint8_t r = uint8_t(s & 0xFF);  // Position innerhalb des Sechstels
+    switch (sector) {
+        case 0: return {255, r, 0};
+        case 1: return {uint8_t(255 - r), 255, 0};
+        case 2: return {0, 255, r};
+        case 3: return {0, uint8_t(255 - r), 255};
+        case 4: return {r, 0, 255};
+        default: return {255, 0, uint8_t(255 - r)};
+    }
+}
+
 const char* animName(AnimKind k) {
     switch (k) {
         case AnimKind::Wipe: return "wipe";
@@ -62,6 +83,7 @@ const char* animName(AnimKind k) {
         case AnimKind::Noise: return "noise";
         case AnimKind::Sparkle: return "sparkle";
         case AnimKind::Fire: return "fire";
+        case AnimKind::Rainbow: return "rainbow";
         case AnimKind::Count: break;
     }
     return "wave";
@@ -107,6 +129,13 @@ const AnimPreset kAnimPresets[] = {
     // Plasma: kraeftiger Magenta-Cyan-Kontrast und feine, schnelle Turbulenz --
     // bewusst weit weg vom Nordlicht, das breit, langsam und gruen ist.
     {"plasma", AnimKind::Noise, p({255, 0, 90}, {0, 200, 255}, 70, 128, 150, 128, 0)},
+    // Regenbogen: langsames Farbwabern aus der Mitte heraus. from/to sind hier
+    // wirkungslos -- die Palette ist das Spektrum. Sie stehen trotzdem da, weil
+    // ein Preset ein vollstaendiger Parametersatz ist; wer ihn kopiert und die
+    // Art aendert, faengt nicht bei Schwarz an.
+    // Kleines scale = weite Ringe: auf 11x10 passen sonst zu viele Farben
+    // nebeneinander und das Spektrum zerfaellt in Konfetti.
+    {"regenbogen", AnimKind::Rainbow, p({255, 0, 0}, {0, 90, 255}, 26, 170, 60, 128, 0)},
 };
 const uint8_t kAnimPresetCount = sizeof(kAnimPresets) / sizeof(kAnimPresets[0]);
 
@@ -163,6 +192,7 @@ void Animator::render(Frame& out, uint32_t nowMs) const {
         case AnimKind::Noise: renderNoise(out, t); break;
         case AnimKind::Sparkle: renderSparkle(out, t); break;
         case AnimKind::Fire: renderFire(out, t); break;
+        case AnimKind::Rainbow: renderRainbow(out, t); break;
         case AnimKind::Count: break;
     }
 }
@@ -307,6 +337,50 @@ void Animator::renderFire(Frame& out, uint32_t t) const {
             // Heisser Kern laeuft ins Helle aus.
             const Rgb base = lerp(params_.from, params_.to, heat);
             out.setXY(x, y, scale(base, heat));
+        }
+    }
+}
+
+// Spektrum, das aus der Mitte quillt. Der Farbton haengt am Abstand zum
+// Ursprung, die Zeit zieht ihn nach aussen -- wie ripple, aber die Ringe sind
+// nicht hell und dunkel, sondern rot und gruen und blau.
+//
+// Zwei Dinge unterscheiden es von "ripple mit Regenbogenpalette":
+//
+// Erstens verbiegen zwei ungleich schnelle Wellen den Abstand, bevor daraus ein
+// Farbton wird. Exakte Kreise sehen auf 11x10 nach Zielscheibe aus; die
+// Verbiegung laesst die Ringe wabern statt bloss zu pulsieren, und weil beide
+// Wellen unterschiedlich lange brauchen, wiederholt sich das Bild praktisch nie.
+//
+// Zweitens bleibt die Helligkeit fast voll. Ein Regenbogen, der zwischendurch
+// nach Schwarz laeuft, verliert genau die Farben, wegen derer man ihn gewaehlt
+// hat -- die leichte Schwankung gibt ihm nur Tiefe.
+void Animator::renderRainbow(Frame& out, uint32_t t) const {
+    // Deutlich traeger als wave: das Wabern soll man beim Hinsehen bemerken,
+    // nicht beim Vorbeigehen.
+    const uint32_t p = phase(t, params_.speed, 3400);
+    const uint8_t k = uint8_t(8 + params_.scale / 6);  // Farbton je Abstandsschritt
+    // Auslenkung in Farbtoneinheiten -- an k gekoppelt, damit sie in Zellen
+    // gemessen gleich bleibt, wenn man die Ringe enger stellt. Bei mittlerer
+    // Dichte verbiegt sich ein Ring um rund eine Zelle; ohne die Kopplung
+    // verschluckt eine hohe Dichte bei weiten Ringen das Kreisrunde ganz.
+    const int32_t swell = (int32_t(params_.density) * k) / 192;
+
+    for (uint8_t y = 0; y < kHeight; ++y) {
+        for (uint8_t x = 0; x < kWidth; ++x) {
+            const int32_t dx = int32_t(x) - params_.originX;
+            const int32_t dy = int32_t(y) - params_.originY;
+            // Wie bei ripple: max + halbes min statt Wurzel.
+            const int32_t ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+            const int32_t dist = (ax > ay ? ax : ay) + (ax > ay ? ay : ax) / 2;
+
+            const int32_t wobble =
+                (int32_t(sin8(uint8_t(x * 20 + y * 12 + p / 3))) - 128) * swell / 128 +
+                (int32_t(sin8(uint8_t(y * 17 - x * 9 - p / 5))) - 128) * swell / 192;
+
+            const uint8_t hue = uint8_t(dist * k + wobble - int32_t(p));
+            const uint8_t bright = uint8_t(200 + sin8(uint8_t(dist * 12 - p / 2)) / 5);
+            out.setXY(x, y, scale(hue8(hue), bright));
         }
     }
 }
