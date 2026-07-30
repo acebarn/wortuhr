@@ -191,7 +191,7 @@ private:
     uint32_t nowMs_ = 0;
     ActionHandler onAction_ = nullptr;
     void* ctx_ = nullptr;
-    char buffer_[4096] = {};
+    char buffer_[wordclock::kWebBufferSize] = {};
 };
 
 }  // namespace sim

@@ -70,6 +70,19 @@ struct WebStatus {
     const char* hostname = "wortuhr";
 };
 
+// Groesse des Antwortpuffers -- eine Zahl fuer Geraet, Simulator und Test.
+//
+// Sie waren einmal verschieden: 2048 auf dem Geraet, 4096 im Simulator, 3072
+// im Test. Das Schema passte dadurch ueberall ausser dort, wo es zaehlt; die
+// Einstellungsseite blieb auf der echten Uhr leer, waehrend Test und Simulator
+// gruen waren. Wer diesen Wert senkt, muss ihn ueberall senken -- deshalb
+// steht er hier und nicht dreimal.
+//
+// Ein Test haelt fest, dass die groesste Antwort mit Luft hineinpasst. Waechst
+// das Schema darueber hinaus, faellt das auf dem Rechner auf und nicht an der
+// Wand.
+inline constexpr size_t kWebBufferSize = 3072;
+
 class WebApi {
 public:
     void begin(Config* config, Secrets* secrets) {

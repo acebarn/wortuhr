@@ -28,7 +28,7 @@ static const char* msg(const char* fmt, ...) {
     return g_msg;
 }
 
-static char g_buf[3072];
+static char g_buf[kWebBufferSize];
 
 struct Rig {
     Config config;
@@ -335,6 +335,29 @@ static void test_too_small_buffer_reports_instead_of_truncating() {
     TEST_ASSERT_EQUAL_INT_MESSAGE(507, res.status, "zu kleiner Puffer muss gemeldet werden");
 }
 
+// Der Puffer des Geraets ist die einzige Groesse, die zaehlt.
+//
+// Genau das ist einmal schiefgegangen: das Schema wuchs ueber die 2048 Byte
+// des Geraets hinaus, waehrend Simulator (4096) und Test (3072) grosszuegiger
+// waren. Ergebnis war eine leere Einstellungsseite auf der echten Uhr, mit
+// gruenen Tests. Deshalb misst dieser Test gegen kWebBufferSize und verlangt
+// Luft nach oben -- eine Antwort, die gerade eben passt, ist eine, die die
+// naechste Einstellung sprengt.
+static void test_largest_answers_fit_the_device_buffer() {
+    Rig r;
+    const char* paths[] = {"/api/schema", "/api/config", "/api/status", "/api/animations"};
+
+    for (const char* path : paths) {
+        WebResponse res;
+        r.call("GET", path, "", res);
+        TEST_ASSERT_EQUAL_INT_MESSAGE(200, res.status, path);
+        TEST_ASSERT_TRUE_MESSAGE(
+            res.length + 256 < kWebBufferSize,
+            msg("%s braucht %u von %u Byte -- unter 256 Byte Luft", path, unsigned(res.length),
+                unsigned(kWebBufferSize)));
+    }
+}
+
 // =============================================================================
 
 int main() {
@@ -362,5 +385,6 @@ int main() {
     RUN_TEST(test_stopping_an_animation);
     RUN_TEST(test_status_reports_health);
     RUN_TEST(test_too_small_buffer_reports_instead_of_truncating);
+    RUN_TEST(test_largest_answers_fit_the_device_buffer);
     return UNITY_END();
 }

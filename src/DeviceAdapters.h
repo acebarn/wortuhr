@@ -399,7 +399,7 @@ private:
     ESP8266WebServer server_{80};
     wordclock::WebApi* api_ = nullptr;
     wordclock::WebAction pending_ = wordclock::WebAction::None;
-    char buffer_[2048] = {};
+    char buffer_[wordclock::kWebBufferSize] = {};
 };
 
 // --- Notzugang ueber den Stecker -------------------------------------------
