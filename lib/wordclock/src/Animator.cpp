@@ -340,14 +340,23 @@ void Animator::renderFire(Frame& out, uint32_t t) const {
         // das ergibt eine gleichmaessige Rampe von unten nach oben, in der man
         // keine einzelne Flamme erkennt.
         //
-        // Zwei ungleich schnelle Anteile: eine Schwingung, damit benachbarte
-        // Spalten nicht im Gleichtakt zuengeln, und ein springender Anteil fuer
-        // das Zucken. Die Dichte bestimmt, wie weit die Spitzen auseinander
-        // liegen -- bei 0 brennen alle Spalten gleich hoch.
+        // Zwei Schwingungen, ungleich schnell und gegenlaeufig: benachbarte
+        // Spalten zuengeln dadurch nicht im Gleichtakt, und weil die Perioden
+        // nicht ineinander aufgehen, wiederholt sich das Bild praktisch nie.
+        //
+        // Bewusst kein Hash fuer die Hoehe. Der ist unstetig, und bei zwanzig
+        // Bildern je Sekunde sprang die Spitze zwischen zwei Bildern um mehrere
+        // Zellen -- das sah nicht nach Zuengeln aus, sondern nach Zappeln. Fuer
+        // die Turbulenz unten taugt er, dort soll es koernig sein; die Silhouette
+        // einer Flamme bewegt sich stetig.
+        //
+        // Die Dichte bestimmt, wie weit die Spitzen auseinander liegen -- bei 0
+        // brennen alle Spalten gleich hoch.
         const int32_t spread = 2 + int32_t(params_.density) / 24;  // 2..12 Zellen Spanne
-        const int32_t tip16 =
-            (3 * 16) + (int32_t(sin8(uint8_t(x * 29 + p / 2))) * spread * 16) / 255 / 2 +
-            ((hash8(uint16_t(x * 7 + p / 14)) * spread * 16) / 255 / 2);
+        const int32_t swing = (spread * 16) / 2;
+        const int32_t tip16 = (3 * 16) +
+                              (int32_t(sin8(uint8_t(x * 29 + p / 2))) * swing) / 255 +
+                              (int32_t(sin8(uint8_t(x * 53 - p / 3))) * swing) / 255;
 
         for (uint8_t y = 0; y < kHeight; ++y) {
             const uint8_t up = uint8_t(kHeight - 1 - y);  // 0 unten

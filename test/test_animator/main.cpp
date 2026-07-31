@@ -223,6 +223,128 @@ static void test_fire_is_hotter_at_the_bottom() {
                                  unsigned(bottom), unsigned(top)));
 }
 
+// Hilfsgroesse fuer die Feuer-Tests: oberste brennende Zelle einer Spalte,
+// gezaehlt von unten. -1, wenn die Spalte dunkel ist.
+static int flameTip(const Frame& f, uint8_t x) {
+    for (uint8_t y = 0; y < kHeight; ++y)
+        if (valueOf(f.xy(x, y)) > 25) return kHeight - 1 - y;
+    return -1;
+}
+
+// Der Kern der Beschwerde "die Flammen sind nicht erkennbar": vorher kuehlte
+// jede Spalte gleich, das Bild war eine gleichmaessige Rampe von unten nach
+// oben. Eine Flamme hat eine Spitze, und die steht nicht in jeder Spalte auf
+// derselben Hoehe.
+static void test_fire_has_tongues_of_different_height() {
+    AnimKind k;
+    AnimParams p;
+    TEST_ASSERT_TRUE(resolveAnim("feuer", k, p));
+    Animator a;
+    a.start(k, p, 0);
+
+    int spreadSeen = 0;
+    for (uint32_t t = 0; t < 20000; t += 250) {
+        Frame f;
+        f.clear();
+        a.render(f, t);
+
+        int lo = kHeight, hi = -1;
+        for (uint8_t x = 0; x < kWidth; ++x) {
+            const int tip = flameTip(f, x);
+            if (tip < lo) lo = tip;
+            if (tip > hi) hi = tip;
+        }
+        if (hi - lo > spreadSeen) spreadSeen = hi - lo;
+    }
+    TEST_ASSERT_TRUE_MESSAGE(spreadSeen >= 3,
+                             msg("hoechster und niedrigster Zipfel lagen nie weiter als %d "
+                                 "Zellen auseinander -- das ist eine Rampe, keine Flamme",
+                                 spreadSeen));
+}
+
+// Die Silhouette muss sich stetig bewegen. Haengt die Hoehe an einem Hash,
+// springt sie bei zwanzig Bildern je Sekunde um mehrere Zellen -- das sieht
+// nicht nach Zuengeln aus, sondern nach Zappeln.
+static void test_fire_tips_move_smoothly() {
+    AnimKind k;
+    AnimParams p;
+    TEST_ASSERT_TRUE(resolveAnim("feuer", k, p));
+    Animator a;
+    a.start(k, p, 0);
+
+    int prev[kWidth];
+    for (uint8_t x = 0; x < kWidth; ++x) prev[x] = -1;
+
+    double sum = 0;
+    int n = 0;
+    for (uint32_t t = 0; t < 20000; t += 50) {  // 20 Bilder je Sekunde
+        Frame f;
+        f.clear();
+        a.render(f, t);
+        for (uint8_t x = 0; x < kWidth; ++x) {
+            const int tip = flameTip(f, x);
+            if (prev[x] >= 0 && tip >= 0) {
+                sum += std::abs(tip - prev[x]);
+                ++n;
+            }
+            prev[x] = tip;
+        }
+    }
+    const double mean = sum / n;
+    TEST_ASSERT_TRUE_MESSAGE(mean < 1.5,
+                             msg("die Spitze springt im Mittel %.2f Zellen je Bild", mean));
+}
+
+// Das Glutbett brennt immer.
+//
+// Genau hier lag ein Fehler: die Glut wurde in uint8_t gerechnet, lief bis 266
+// und kippte auf 10. Die betroffene Spalte erlosch vollstaendig -- mitten im
+// Feuer stand eine schwarze Saeule, die langsam durchs Bild wanderte.
+static void test_fire_never_loses_a_column_at_the_base() {
+    AnimKind k;
+    AnimParams p;
+    TEST_ASSERT_TRUE(resolveAnim("feuer", k, p));
+    Animator a;
+    a.start(k, p, 0);
+
+    for (uint32_t t = 0; t < 20000; t += 70) {
+        Frame f;
+        f.clear();
+        a.render(f, t);
+        for (uint8_t x = 0; x < kWidth; ++x)
+            TEST_ASSERT_TRUE_MESSAGE(valueOf(f.xy(x, kHeight - 1)) > 40,
+                                     msg("Spalte %u ist unten erloschen (t=%u)", x, unsigned(t)));
+    }
+}
+
+// Kein Milchglas-Beige: Weiss gehoert in den Kern, nicht in die halbe Flamme.
+// Vorher lief die Palette linear von `from` nach `to`, also war schon halbe
+// Hitze halb bei der hellen Farbe -- das Feuer wurde milchig.
+static void test_fire_stays_saturated() {
+    AnimKind k;
+    AnimParams p;
+    TEST_ASSERT_TRUE(resolveAnim("feuer", k, p));
+    Animator a;
+    a.start(k, p, 0);
+
+    uint16_t milky = 0, lit = 0;
+    for (uint32_t t = 0; t < 20000; t += 90) {
+        Frame f;
+        f.clear();
+        a.render(f, t);
+        for (uint16_t c = 0; c < kLetterCount; ++c) {
+            const Rgb v = f.cell(c);
+            if (v == kBlack) continue;
+            ++lit;
+            // Blau ist der Verraeter: eine Flamme hat Rot und Gelb, Blau nur
+            // im weissen Kern -- und der sind wenige Zellen.
+            if (v.b * 4 > v.r) ++milky;
+        }
+    }
+    TEST_ASSERT_TRUE_MESSAGE(milky * 20 < lit,
+                             msg("%u von %u brennenden Zellen sind milchig", milky, lit));
+}
+
 // Herabfallende Spuren muessen sich abwaerts bewegen, nicht bloss blinken.
 static void test_fall_moves_downward() {
     Animator a;
@@ -419,6 +541,10 @@ int main() {
     RUN_TEST(test_speed_zero_stands_still);
     RUN_TEST(test_palette_is_respected);
     RUN_TEST(test_fire_is_hotter_at_the_bottom);
+    RUN_TEST(test_fire_has_tongues_of_different_height);
+    RUN_TEST(test_fire_tips_move_smoothly);
+    RUN_TEST(test_fire_never_loses_a_column_at_the_base);
+    RUN_TEST(test_fire_stays_saturated);
     RUN_TEST(test_fall_moves_downward);
     RUN_TEST(test_hue8_covers_the_spectrum_without_a_seam);
     RUN_TEST(test_rainbow_flows_outward);
