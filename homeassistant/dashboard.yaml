@@ -1,0 +1,230 @@
+# Lovelace-Dashboard fuer die Wortuhr.
+#
+# Einspielen: HomeAssistant -> Einstellungen -> Dashboards -> Dashboard
+# hinzufuegen -> oben rechts Stift -> Drei-Punkte-Menue -> "Raw-Konfigurationseditor"
+# -> Inhalt dieser Datei einfuegen.
+#
+# Die Entitaeten legt die Uhr selbst per MQTT-Discovery an; hier steht nur, wie
+# sie angeordnet werden. Eine neue Einstellung in der Firmware erscheint in HA
+# also von allein -- auf dieser Karte aber erst, wenn sie hier eingetragen wird.
+# Das ist Absicht: eine Karte, die sich selbst umbaut, waere nicht vorhersagbar.
+#
+# Entitaets-IDs folgen dem Schema <domain>.wortuhr_<schluessel> (obj_id aus
+# MqttContract.cpp). Heisst dein Geraet anders, ist der Praefix zu ersetzen.
+
+views:
+  - title: Wortuhr
+    path: wortuhr
+    icon: mdi:clock-text-outline
+    cards:
+      # --- Kopf: laeuft sie ueberhaupt? ------------------------------------
+      - type: entities
+        title: Zustand
+        show_header_toggle: false
+        entities:
+          - entity: sensor.wortuhr_status
+            name: Status
+          - entity: sensor.wortuhr_sync_age
+            name: Letzter Zeitsync
+          - type: divider
+          - entity: number.wortuhr_brightness
+            name: Helligkeit
+          - entity: text.wortuhr_color
+            name: Farbe (RRGGBB)
+
+      # --- Anzeige ----------------------------------------------------------
+      - type: entities
+        title: Anzeige
+        show_header_toggle: false
+        entities:
+          - entity: switch.wortuhr_gradient
+            name: Farbverlauf
+          - entity: text.wortuhr_gradient_to
+            name: Verlauf-Zielfarbe
+          - type: divider
+          - entity: select.wortuhr_transition
+            name: Uebergang
+          - entity: number.wortuhr_transition_ms
+            name: Uebergangsdauer (ms)
+          - type: divider
+          - entity: number.wortuhr_ghost
+            name: Geisterwoerter
+          - entity: switch.wortuhr_ghost_fillers
+            name: Fuellbuchstaben mitglimmen
+          - entity: number.wortuhr_breath_depth
+            name: Sekundenatmen
+
+      # --- Animationen ------------------------------------------------------
+      #
+      # Kein Discovery-Knopf, sondern direkte Telegramme auf den Notify-Kanal:
+      # Animationen sind Ereignisse, keine Einstellung. Alle benutzen denselben
+      # Kanalnamen "dashboard" -- ein zweiter Druck loest den ersten ab, statt
+      # sich zu stapeln.
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+          - type: button
+            name: Regenbogen
+            icon: mdi:looks
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"regenbogen","ttl":30}'
+          - type: button
+            name: Feuer
+            icon: mdi:fire
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"feuer","ttl":30}'
+          - type: button
+            name: Nordlicht
+            icon: mdi:weather-night
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"nordlicht","ttl":30}'
+          - type: button
+            name: Matrix
+            icon: mdi:code-braces
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"matrix","ttl":30}'
+          - type: button
+            name: Plasma
+            icon: mdi:blur
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"plasma","ttl":30}'
+          - type: button
+            name: Welle
+            icon: mdi:waves
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"welle","ttl":30}'
+          - type: button
+            name: Tropfen
+            icon: mdi:water
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"tropfen","ttl":30}'
+          - type: button
+            name: Silvester
+            icon: mdi:firework
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"silvester","ttl":30}'
+          - type: button
+            name: Sonnenaufgang
+            icon: mdi:weather-sunset-up
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"sonnenaufgang","ttl":30}'
+          # Abbrechen loescht denselben Kanal wieder. Ohne diesen Knopf
+          # muesste man 30 Sekunden warten, bis die Uhrzeit zurueckkommt.
+          - type: button
+            name: Stopp
+            icon: mdi:stop
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","clear":true}'
+
+      # --- Stundenschlag ----------------------------------------------------
+      - type: entities
+        title: Stundenschlag
+        show_header_toggle: false
+        entities:
+          - entity: switch.wortuhr_chime_enabled
+            name: Zur vollen Stunde
+          - entity: select.wortuhr_chime_style
+            name: Animation
+          - entity: number.wortuhr_chime_seconds
+            name: Dauer (s)
+
+      # --- Nacht und Aus ----------------------------------------------------
+      #
+      # Zwei getrennte Fenster: nachts gedimmt und warm, "aus" wirklich dunkel.
+      # HomeAssistant hat Vorrang vor beiden (DESIGN 6).
+      - type: entities
+        title: Nacht
+        show_header_toggle: false
+        entities:
+          - entity: switch.wortuhr_night_enabled
+            name: Nachtmodus
+          - entity: text.wortuhr_night_from
+            name: Nacht ab
+          - entity: text.wortuhr_night_to
+            name: Nacht bis
+          - entity: number.wortuhr_night_brightness
+            name: Helligkeit nachts
+          - entity: text.wortuhr_night_color
+            name: Farbe nachts
+
+      - type: entities
+        title: Abschaltzeit
+        show_header_toggle: false
+        entities:
+          - entity: switch.wortuhr_off_enabled
+            name: Abschaltzeit
+          - entity: text.wortuhr_off_from
+            name: Aus ab
+          - entity: text.wortuhr_off_to
+            name: Aus bis
+
+      # --- Selten gebraucht -------------------------------------------------
+      - type: entities
+        title: Technik
+        show_header_toggle: false
+        state_color: false
+        entities:
+          - entity: number.wortuhr_smoothing
+            name: Ueberblendung
+          - entity: number.wortuhr_current_limit
+            name: Strombegrenzung (mA)
+          - type: divider
+          - entity: sensor.wortuhr_rssi
+            name: WLAN-Signal
+          - entity: sensor.wortuhr_current
+            name: Geschaetzter Strom
+          - entity: sensor.wortuhr_heap
+            name: Freier Speicher
+          - entity: sensor.wortuhr_uptime
+            name: Laufzeit

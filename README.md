@@ -199,6 +199,25 @@ mosquitto_sub -v -t 'homeassistant/#' -t 'wortuhr/#'
 
 ---
 
+## HomeAssistant
+
+Die Uhr meldet sich selbst per MQTT-Discovery an: 22 Einstellungen und 6
+Diagnosewerte, alle mit `state_topic` und `optimistic: false`. HA zeigt also
+nur, was die Uhr bestätigt hat — nicht, was HA gerne hätte. Anzulegen ist
+dort nichts.
+
+Ein fertiges Dashboard liegt in [`homeassistant/dashboard.yaml`](homeassistant/dashboard.yaml).
+Einspielen über *Einstellungen → Dashboards → Dashboard hinzufügen*, dann im
+Raw-Konfigurationseditor einfügen. Es enthält Anzeige, Nacht- und
+Abschaltfenster, Stundenschlag, die Technikwerte und neun Animationsknöpfe.
+
+Die Animationsknöpfe sind keine Entitäten, sondern schicken direkt ein
+Telegramm auf `wortuhr/notify` — Animationen sind Ereignisse, keine
+Einstellung. Alle benutzen denselben Kanalnamen, ein zweiter Druck löst den
+ersten also ab, statt sich zu stapeln. Der Stopp-Knopf löscht den Kanal.
+
+---
+
 ## Bauen und flashen
 
 ```bash
