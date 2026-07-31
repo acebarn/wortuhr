@@ -18,7 +18,13 @@
 #define MQTT_PASS ""
 #endif
 
+// Leer heisst: kein OTA. Siehe OtaUpdater.h.
+#ifndef OTA_PASS
+#define OTA_PASS ""
+#endif
+
 #include "DeviceAdapters.h"
+#include "OtaUpdater.h"
 #include "wordclock/App.h"
 
 using namespace wordclock;
@@ -36,6 +42,7 @@ DeviceMqtt mqttTransport;
 DeviceSystem systemInfo;
 DeviceWeb web;
 BootGuard bootGuard;
+OtaUpdater ota;
 
 Ports makePorts() {
     Ports p;
@@ -125,11 +132,13 @@ void setup() {
     seed.set(SecretKey::MqttHost, MQTT_HOST);
     seed.set(SecretKey::MqttUser, MQTT_USER);
     seed.set(SecretKey::MqttPass, MQTT_PASS);
+    seed.set(SecretKey::OtaPass, OTA_PASS);
     { char portBuf[8]; snprintf(portBuf, sizeof(portBuf), "%d", MQTT_PORT);
       seed.set(SecretKey::MqttPort, portBuf); }
 
     app.begin(&seed);
     web.begin(&app.web());
+    ota.begin(&strip);
 
     if (bootGuard.triggered()) {
         Serial.println("[boot] fuenf abgebrochene Starts -> Werksreset");
@@ -143,6 +152,13 @@ void loop() {
 
     network.poll();
     deviceClock.poll();
+
+    // Vor allem anderen: waehrend eines Updates darf die Uhr weder zeichnen
+    // noch senden. ArduinoOTA.handle() kehrt erst zurueck, wenn das Abbild
+    // geschrieben ist -- der Rest der Schleife kommt dann von selbst nicht mehr
+    // dran, und das ist die Absicht.
+    ota.poll(network.connected(), app.secrets().get(SecretKey::OtaPass));
+
     web.poll();
     bootGuard.poll(nowMs);
     app.tick();

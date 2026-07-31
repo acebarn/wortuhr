@@ -189,6 +189,9 @@ static void test_secrets_never_leak_through_the_api() {
     Rig r;
     r.secrets.set(SecretKey::WifiPass, "sehrgeheim");
     r.secrets.set(SecretKey::MqttPass, "auchgeheim");
+    // Das OTA-Kennwort ist das heikelste von allen: wer es kennt, schreibt
+    // beliebige Firmware auf die Uhr.
+    r.secrets.set(SecretKey::OtaPass, "flashgeheim");
 
     WebResponse res;
     r.call("GET", "/api/secrets", "", res);
@@ -198,6 +201,8 @@ static void test_secrets_never_leak_through_the_api() {
                              "WLAN-Kennwort steht in der Antwort");
     TEST_ASSERT_TRUE_MESSAGE(body.find("auchgeheim") == std::string::npos,
                              "Broker-Kennwort steht in der Antwort");
+    TEST_ASSERT_TRUE_MESSAGE(body.find("flashgeheim") == std::string::npos,
+                             "OTA-Kennwort steht in der Antwort");
     TEST_ASSERT_TRUE(body.find(kMaskPlaceholder) != std::string::npos);
 }
 

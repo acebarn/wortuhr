@@ -202,10 +202,32 @@ mosquitto_sub -v -t 'homeassistant/#' -t 'wortuhr/#'
 ## Bauen und flashen
 
 ```bash
-pio test -e native            # Kern ohne Hardware, ~130 Testfälle
-pio run -e wortuhr -t upload  # Firmware
+pio test -e native            # Kern ohne Hardware, ~150 Testfälle
+pio run -e wortuhr -t upload  # Firmware über USB
 pio run -e preview            # nur das Panel im Terminal
 ```
+
+### Über WLAN, ohne Kabel
+
+Nach dem ersten USB-Flash geht jedes weitere Update über die Luft. Dafür muss
+ein **OTA-Kennwort** gesetzt sein — in der Webapp unter *Zugangsdaten*, oder
+einmalig über `OTA_PASS` in `include/secrets.h`. Ist keines gesetzt, meldet
+sich der Update-Dienst gar nicht erst an: ein offener Dienst hieße, dass jeder
+im Netz die Uhr umflashen kann.
+
+```bash
+export WORTUHR_OTA_PASS='...'
+pio run -e wortuhr-ota -t upload
+```
+
+Während des Updates zeigt die Frontplatte einen Fortschrittsbalken, am Ende
+kurz Grün, bei einem Fehler Rot. Das ist Absicht: die Uhr hängt in dieser Zeit
+im Update fest, Webapp und MQTT antworten nicht, und wer davor steht, soll
+nicht auf die Idee kommen, den Stecker zu ziehen. Genau das darf man mitten im
+Schreiben des Flash nicht tun.
+
+Schlägt ein Update fehl, läuft die alte Firmware weiter — geschrieben wird erst,
+wenn das Abbild vollständig angekommen ist. Einfach neu starten.
 
 Vor dem ersten Flashen `include/secrets_example.h` nach `include/secrets.h`
 kopieren und ausfüllen. Das ist nur die **Erstbefüllung** — was einmal über die

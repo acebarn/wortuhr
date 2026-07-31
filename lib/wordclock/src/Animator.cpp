@@ -123,7 +123,10 @@ const AnimPreset kAnimPresets[] = {
     // das wirkte schuechtern statt festlich.
     {"silvester", AnimKind::Sparkle, p({255, 70, 170}, {255, 245, 210}, 190, 175, 128, 205, 0)},
     {"sonnenaufgang", AnimKind::Wipe, p({255, 60, 0}, {255, 200, 90}, 30, 128, 128, 128, 1)},
-    {"feuer", AnimKind::Fire, p({255, 40, 0}, {255, 230, 140}, 150, 150, 128, 128, 0)},
+    // Feuer: `to` ist gesaettigtes Gelb, kein Creme. Der Blauanteil war die
+    // halbe Miete des milchigen Eindrucks -- eine Flamme hat oben Gelb, Weiss
+    // hoechstens im Kern, und der Kern sind wenige Zellen.
+    {"feuer", AnimKind::Fire, p({255, 30, 0}, {255, 200, 40}, 150, 170, 128, 128, 0)},
     {"welle", AnimKind::Wave, p({255, 150, 40}, {200, 0, 90}, 70, 128, 110, 128, 0)},
     {"tropfen", AnimKind::Ripple, p({120, 200, 255}, {0, 30, 90}, 90, 128, 120, 128, 0)},
     // Plasma: kraeftiger Magenta-Cyan-Kontrast und feine, schnelle Turbulenz --
@@ -321,21 +324,58 @@ void Animator::renderFire(Frame& out, uint32_t t) const {
 
     for (uint8_t x = 0; x < kWidth; ++x) {
         // Glut am Boden, je Spalte unterschiedlich stark und in Bewegung.
-        const uint8_t ember =
-            uint8_t(160 + sin8(uint8_t(x * 40 + p)) / 3 +
-                    (hash8(uint16_t(x * 7 + p / 6)) >> 3));
+        //
+        // In int32 gerechnet, nicht in uint8_t: die Summe lief bis 266 und
+        // kippte beim Abschneiden auf 10. Die Spalte erlosch dann vollstaendig
+        // -- mitten im Feuer stand eine schwarze Saeule, die langsam durchs
+        // Bild wanderte.
+        const int32_t ember =
+            150 + sin8(uint8_t(x * 40 + p)) / 3 + (hash8(uint16_t(x * 7 + p / 6)) >> 3);
+
+        // Hoehe der Zunge in dieser Spalte, in Sechzehnteln einer Zelle.
+        //
+        // Das ist der Unterschied zwischen Feuer und einem Verlauf: eine
+        // Flamme hat eine Spitze, und ueber ihr ist es dunkel. Vorher kuehlte
+        // jede Spalte gleich, und die Form entstand nur aus Punktrauschen --
+        // das ergibt eine gleichmaessige Rampe von unten nach oben, in der man
+        // keine einzelne Flamme erkennt.
+        //
+        // Zwei ungleich schnelle Anteile: eine Schwingung, damit benachbarte
+        // Spalten nicht im Gleichtakt zuengeln, und ein springender Anteil fuer
+        // das Zucken. Die Dichte bestimmt, wie weit die Spitzen auseinander
+        // liegen -- bei 0 brennen alle Spalten gleich hoch.
+        const int32_t spread = 2 + int32_t(params_.density) / 24;  // 2..12 Zellen Spanne
+        const int32_t tip16 =
+            (3 * 16) + (int32_t(sin8(uint8_t(x * 29 + p / 2))) * spread * 16) / 255 / 2 +
+            ((hash8(uint16_t(x * 7 + p / 14)) * spread * 16) / 255 / 2);
 
         for (uint8_t y = 0; y < kHeight; ++y) {
             const uint8_t up = uint8_t(kHeight - 1 - y);  // 0 unten
-            // Abkuehlung mit der Hoehe, moduliert durch wanderndes Rauschen.
-            const int32_t cool =
-                int32_t(up) * (200 - params_.density / 2) / kHeight +
-                (hash8(uint16_t(x * 31 + up * 17 + p / 4)) >> 3);
-            const uint8_t heat = clamp8(int32_t(ember) - cool);
+            const int32_t up16 = int32_t(up) * 16;
+            if (up16 >= tip16) continue;  // ueber der Spitze ist Nacht
+
+            // Innerhalb der Zunge: unten volle Glut, zur Spitze hin aus.
+            const int32_t along = ((tip16 - up16) * 255) / tip16;
+
+            // Turbulenz, die nach oben wandert. Das Minus ist der ganze Punkt:
+            // mit Plus sank das Muster ab, und fallendes Feuer sieht aus wie
+            // Rost. Sie franst den Rand der Zunge aus, damit die Spitze nicht
+            // wie abgeschnitten wirkt.
+            const int32_t turbulence =
+                (hash8(uint16_t(x * 31 + uint16_t(up * 17 - p / 3))) * params_.density) / 900;
+
+            const uint8_t heat = clamp8((ember * along) / 255 - turbulence);
             if (!heat) continue;
 
-            // Heisser Kern laeuft ins Helle aus.
-            const Rgb base = lerp(params_.from, params_.to, heat);
+            // Weiss gehoert nur in den Kern.
+            //
+            // Vorher lief die Palette linear von `from` nach `to`, also war
+            // schon halbe Hitze halb bei der hellen Farbe -- das ganze Feuer
+            // wurde milchig und die Flammen verschwanden im Beige. Die untere
+            // Haelfte bleibt jetzt satt bei `from`; erst darueber blendet es
+            // auf, und nur die heissesten Zellen erreichen `to`.
+            const uint8_t f = heat < 128 ? 0 : uint8_t((heat - 128) * 2);
+            const Rgb base = lerp(params_.from, params_.to, f);
             out.setXY(x, y, scale(base, heat));
         }
     }

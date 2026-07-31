@@ -15,3 +15,10 @@
 #define MQTT_PORT 1883
 #define MQTT_USER ""
 #define MQTT_PASS ""
+
+// Kennwort fuer Firmware-Updates ueber WLAN. Leer lassen schaltet OTA ab --
+// ein offener Update-Dienst hiesse, dass jeder im Netz die Uhr umflashen kann.
+//
+//   export WORTUHR_OTA_PASS='...'   # dasselbe Kennwort fuer den Upload
+//   pio run -e wortuhr-ota -t upload
+#define OTA_PASS ""

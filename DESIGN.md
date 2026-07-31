@@ -386,7 +386,7 @@ Die IP-Adresse wird **nicht** dauerhaft auf dem Raster angezeigt.
 | Build | PlatformIO, Framework Arduino | reproduzierbar, Libs versioniert, Host-Tests |
 | LEDs | NeoPixelBus | DMA/UART auf ESP8266, sperrt keine Interrupts |
 | MQTT | PubSubClient | klein, synchron, bewährt |
-| OTA | `espota` nach dem ersten USB-Flash | |
+| OTA | `espota` nach dem ersten USB-Flash | Kennwortpflicht, Fortschritt auf der Frontplatte |
 | Tests | `env:native`, Unity | Kern ohne Hardware prüfbar |
 | Vorschau | `env:preview` | Panel im Terminal, ohne zu flashen |
 | Simulator | `env:sim` | ganze Anwendung auf dem Rechner, echter Broker |
