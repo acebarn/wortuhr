@@ -10,6 +10,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -414,6 +415,134 @@ static void test_switching_animation_on_same_channel() {
     TEST_ASSERT_TRUE_MESSAGE(feuer != plasma, "Wechsel auf plasma wurde nicht uebernommen");
 }
 
+
+// --- Ambient-Modus ----------------------------------------------------------
+//
+// Spielt die Presets in zufaelliger Reihenfolge, jedes eine Minute lang.
+
+// Signatur der laufenden Animation. Zwei Presets koennen dieselbe Art haben --
+// erst mit der Palette und dem Tempo sind sie auseinanderzuhalten.
+static std::string animSignature(const App& app) {
+    const AnimParams& p = app.animator().params();
+    char buf[96];
+    std::snprintf(buf, sizeof(buf), "%s/%u,%u,%u/%u,%u,%u/%u", animName(app.animator().kind()),
+                  p.from.r, p.from.g, p.from.b, p.to.r, p.to.g, p.to.b, p.speed);
+    return buf;
+}
+
+static void test_ambient_is_off_by_default() {
+    Rig r;
+    r.app.begin();
+    r.run(3000);
+    TEST_ASSERT_FALSE_MESSAGE(r.app.animator().running(),
+                              "ohne Schalter darf nichts ueber der Uhrzeit liegen");
+}
+
+static void test_ambient_starts_and_switches_every_minute() {
+    Rig r;
+    r.app.begin();
+    r.app.config().set(ConfigKey::Ambient, 1);
+
+    r.run(1000);
+    TEST_ASSERT_TRUE_MESSAGE(r.app.animator().running(), "Ambient laeuft nicht an");
+    const std::string first = animSignature(r.app);
+
+    // Kurz vor der Minute muss noch dieselbe laufen -- sonst waere es Zufall,
+    // dass ueberhaupt gewechselt wird.
+    r.run(50000);
+    TEST_ASSERT_EQUAL_STRING_MESSAGE(first.c_str(), animSignature(r.app).c_str(),
+                                     "nach 51 s haette noch nicht gewechselt werden duerfen");
+
+    r.run(12000);
+    TEST_ASSERT_TRUE_MESSAGE(first != animSignature(r.app),
+                             "nach gut einer Minute muss etwas anderes laufen");
+}
+
+// Zufaellige Reihenfolge heisst hier: jedes Preset einmal, dann erst wieder von
+// vorn. Gezogene Lose duerften dasselbe zweimal hintereinander bringen, und das
+// faellt genau dann auf, wenn jemand hinsieht.
+static void test_ambient_plays_every_preset_before_repeating() {
+    Rig r;
+    r.app.begin();
+    r.app.config().set(ConfigKey::Ambient, 1);
+    r.run(1000);
+
+    std::set<std::string> seen;
+    std::string prev;
+    for (uint8_t i = 0; i < kAnimPresetCount; ++i) {
+        const std::string sig = animSignature(r.app);
+        TEST_ASSERT_TRUE_MESSAGE(seen.insert(sig).second,
+                                 msg("%s kam zweimal in derselben Runde", sig.c_str()));
+        prev = sig;
+        r.run(kAmbientSwitchMs + 500);
+        TEST_ASSERT_TRUE_MESSAGE(prev != animSignature(r.app),
+                                 "zwei gleiche direkt hintereinander");
+    }
+    TEST_ASSERT_EQUAL_UINT8_MESSAGE(kAnimPresetCount, uint8_t(seen.size()),
+                                    "eine Runde muss jedes Preset genau einmal zeigen");
+}
+
+// HomeAssistant und Stundenschlag sind Absicht, Ambient ist Tapete.
+static void test_ambient_yields_to_homeassistant() {
+    Rig r;
+    r.app.begin();
+    r.app.config().set(ConfigKey::Ambient, 1);
+    r.run(1000);
+    TEST_ASSERT_TRUE(r.app.animator().running());
+
+    NotifyRequest req;
+    req.id = "klingel";
+    req.prio = 90;
+    req.style = NotifyStyle::Anim;
+    req.anim = "matrix";
+    req.ttlSeconds = 10;
+    r.app.notifications().push(req, r.clock.ms);
+
+    r.run(500);
+    AnimKind k;
+    AnimParams p;
+    resolveAnim("matrix", k, p);
+    TEST_ASSERT_EQUAL_STRING_MESSAGE("fall", animName(r.app.animator().kind()),
+                                     "die HA-Animation muss Ambient verdraengen");
+    TEST_ASSERT_EQUAL_UINT8(p.from.g, r.app.animator().params().from.g);
+
+    // Nach Ablauf uebernimmt Ambient wieder.
+    r.run(12000);
+    TEST_ASSERT_TRUE_MESSAGE(r.app.animator().running(), "Ambient muss danach weiterlaufen");
+}
+
+// Nachts und im Aus-Zustand ruht die Flaeche. Ein Ambient-Modus, der um drei
+// Uhr morgens Konfetti wirft, waere genau der Grund, warum jemand den Stecker
+// zieht (DESIGN 7.2).
+static void test_ambient_is_silent_at_night() {
+    Rig r;
+    r.app.begin();
+    r.app.config().set(ConfigKey::Ambient, 1);
+    r.app.config().set(ConfigKey::NightEnabled, 1);
+    r.run(1000);
+    TEST_ASSERT_TRUE(r.app.animator().running());
+
+    r.clock.setTime(23, 30);
+    r.run(1000);
+    TEST_ASSERT_FALSE_MESSAGE(r.app.animator().running(), "nachts muss Ambient schweigen");
+
+    r.clock.setTime(12, 0);
+    r.run(1000);
+    TEST_ASSERT_TRUE_MESSAGE(r.app.animator().running(), "tagsueber laeuft es wieder");
+}
+
+static void test_ambient_stops_when_switched_off() {
+    Rig r;
+    r.app.begin();
+    r.app.config().set(ConfigKey::Ambient, 1);
+    r.run(1000);
+    TEST_ASSERT_TRUE(r.app.animator().running());
+
+    r.app.config().set(ConfigKey::Ambient, 0);
+    r.run(500);
+    TEST_ASSERT_FALSE_MESSAGE(r.app.animator().running(), "Ausschalten muss sofort wirken");
+}
+
 // =============================================================================
 
 int main() {
@@ -431,5 +560,11 @@ int main() {
     RUN_TEST(test_broken_storage_does_not_stop_the_clock);
     RUN_TEST(test_notification_tints_and_expires);
     RUN_TEST(test_switching_animation_on_same_channel);
+    RUN_TEST(test_ambient_is_off_by_default);
+    RUN_TEST(test_ambient_starts_and_switches_every_minute);
+    RUN_TEST(test_ambient_plays_every_preset_before_repeating);
+    RUN_TEST(test_ambient_yields_to_homeassistant);
+    RUN_TEST(test_ambient_is_silent_at_night);
+    RUN_TEST(test_ambient_stops_when_switched_off);
     return UNITY_END();
 }

@@ -108,6 +108,58 @@ void App::applyWebAction(WebAction action) {
     }
 }
 
+// --- Ambient ----------------------------------------------------------------
+//
+// Spielt die Presets in zufaelliger Reihenfolge, jedes eine Minute lang.
+//
+// Eine Permutation, kein Wuerfeln je Wechsel: bei gezogenem Los kaeme dieselbe
+// Animation gelegentlich zweimal hintereinander, und das faellt genau dann auf,
+// wenn jemand hinsieht. So laeuft jedes Preset einmal, bevor sich eines
+// wiederholt.
+
+void App::shuffleAmbient(uint32_t nowMs) {
+    const uint8_t n = kAnimPresetCount < kAnimPresetMax ? kAnimPresetCount : kAnimPresetMax;
+    for (uint8_t i = 0; i < n; ++i) ambientOrder_[i] = i;
+
+    // Fisher-Yates. Der Zufall kommt aus hash8 und der Startzeit, nicht aus
+    // rand(): der Simulator soll bei gleicher Zeit dieselbe Reihenfolge zeigen
+    // wie das Geraet, und ein Test soll wiederholbar sein.
+    for (uint8_t i = uint8_t(n - 1); i > 0; --i) {
+        const uint8_t j = uint8_t(hash8(uint16_t(nowMs / 97 + i * 71)) % (i + 1));
+        const uint8_t tmp = ambientOrder_[i];
+        ambientOrder_[i] = ambientOrder_[j];
+        ambientOrder_[j] = tmp;
+    }
+
+    // Ueber den Rundenwechsel hinweg nicht zweimal dasselbe. Ohne das faellt
+    // ausgerechnet die Stelle auf, an der die Zufaelligkeit beweisen soll,
+    // dass sie eine ist.
+    if (n > 1 && ambientOrder_[0] == lastAmbient_) {
+        ambientOrder_[0] = ambientOrder_[n - 1];
+        ambientOrder_[n - 1] = lastAmbient_;
+    }
+}
+
+void App::advanceAmbient(uint32_t nowMs) {
+    const bool due = !ambientUntilMs_ || int32_t(nowMs - ambientUntilMs_) >= 0;
+    if (animator_.running() && !due) return;
+
+    if (ambientPos_ >= kAnimPresetCount) {
+        shuffleAmbient(nowMs);
+        ambientPos_ = 0;
+    }
+
+    const uint8_t idx = ambientOrder_[ambientPos_++];
+    animator_.start(kAnimPresets[idx].kind, kAnimPresets[idx].params, nowMs);
+    lastAmbient_ = idx;
+    ambientUntilMs_ = nowMs + kAmbientSwitchMs;
+
+    // Der Name gehoert dem Notify-Kanal. Bleibt er stehen, haelt der naechste
+    // Vergleich eine HA-Animation gleichen Namens faelschlich fuer schon
+    // laufend -- sie wuerde dann nie starten.
+    lastAnimName_[0] = '\0';
+}
+
 void App::applyStyles(DisplayState state) {
     clockRenderer_.setStyle(clockStyleFor(config_, state));
     dotRenderer_.setStyle(dotStyleFor(config_, state));
@@ -204,12 +256,21 @@ void App::tick() {
         animator_.stop();
         chimeUntilMs_ = 0;
     } else if (!wanted && !chimeUntilMs_) {
-        animator_.stop();
-        lastAnimName_[0] = '\0';
+        // Ambient hat den letzten Rang: HomeAssistant und Stundenschlag sind
+        // Absicht, Ambient ist Tapete. Es fuellt nur die Zeit, in der ohnehin
+        // nichts anderes laeuft.
+        if (mayAnimate && config_.getBool(ConfigKey::Ambient)) {
+            advanceAmbient(nowMs);
+        } else {
+            animator_.stop();
+            lastAnimName_[0] = '\0';
+            ambientUntilMs_ = 0;
+        }
     }
     if (!mayAnimate) {
         animator_.stop();
         chimeUntilMs_ = 0;
+        ambientUntilMs_ = 0;
     }
 
     Frame base;

@@ -93,6 +93,14 @@ static void test_presets_resolve_and_are_distinct() {
     }
     TEST_ASSERT_TRUE_MESSAGE(kAnimPresetCount >= 5, "es sollten mehrere Presets existieren");
 
+    // Der Ambient-Modus mischt die Presets in einem Feld fester Groesse --
+    // kAnimPresetCount ist eine Laufzeitgroesse und taugt nicht als Grenze.
+    // Waechst die Tabelle darueber hinaus, faellt das hier auf und nicht als
+    // Speicherfehler auf dem Geraet.
+    TEST_ASSERT_TRUE_MESSAGE(kAnimPresetCount <= kAnimPresetMax,
+                             msg("%u Presets passen nicht in %u Plaetze", kAnimPresetCount,
+                                 kAnimPresetMax));
+
     // Zwei Presets mit identischen Werten waeren ein Kopierfehler: in der
     // Auswahl staenden zwei Namen, die dasselbe zeigen.
     for (uint8_t i = 0; i < kAnimPresetCount; ++i) {

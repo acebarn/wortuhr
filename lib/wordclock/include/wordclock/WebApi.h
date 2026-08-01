@@ -81,7 +81,7 @@ struct WebStatus {
 // Ein Test haelt fest, dass die groesste Antwort mit Luft hineinpasst. Waechst
 // das Schema darueber hinaus, faellt das auf dem Rechner auf und nicht an der
 // Wand.
-inline constexpr size_t kWebBufferSize = 3072;
+inline constexpr size_t kWebBufferSize = 4096;
 
 class WebApi {
 public:

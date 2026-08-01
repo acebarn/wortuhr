@@ -206,15 +206,33 @@ Diagnosewerte, alle mit `state_topic` und `optimistic: false`. HA zeigt also
 nur, was die Uhr bestätigt hat — nicht, was HA gerne hätte. Anzulegen ist
 dort nichts.
 
+**Entitäts-IDs kommen aus dem Label**, nicht aus `obj_id`: HomeAssistant bildet
+`<domain>.<gerät>_<label>` in Kleinbuchstaben mit Unterstrichen. Aus
+*Verlauf-Zielfarbe* wird `text.wortuhr_verlauf_zielfarbe`. Wer ein Label in
+`Config.h` ändert, benennt damit die Entität um und bricht jedes Dashboard, das
+sie nennt — Labels sind Schnittstelle, nicht Beschriftung.
+
 Ein fertiges Dashboard liegt in [`homeassistant/dashboard.yaml`](homeassistant/dashboard.yaml).
 Einspielen über *Einstellungen → Dashboards → Dashboard hinzufügen*, dann im
 Raw-Konfigurationseditor einfügen. Es enthält Anzeige, Nacht- und
-Abschaltfenster, Stundenschlag, die Technikwerte und neun Animationsknöpfe.
+Abschaltfenster, Stundenschlag, den Ambient-Schalter, die Technikwerte und
+vierzehn Animationsknöpfe.
 
 Die Animationsknöpfe sind keine Entitäten, sondern schicken direkt ein
 Telegramm auf `wortuhr/notify` — Animationen sind Ereignisse, keine
 Einstellung. Alle benutzen denselben Kanalnamen, ein zweiter Druck löst den
 ersten also ab, statt sich zu stapeln. Der Stopp-Knopf löscht den Kanal.
+
+### Ambient-Modus
+
+Spielt alle Animationen in zufälliger Reihenfolge, jede eine Minute lang.
+Einzuschalten über den Schalter *Ambient-Modus* — in HomeAssistant, in der
+Webapp oder direkt per `mosquitto_pub -t wortuhr/set/ambient -m 1`.
+
+Er hat den letzten Rang: HA-Telegramme und Stundenschlag verdrängen ihn und er
+übernimmt danach von selbst wieder. Im Nacht- und Aus-Zustand schweigt er ganz.
+Ausgeschaltet ist er die Voreinstellung — vollflächige Animationen verdecken die
+Uhrzeit, und das soll eine Entscheidung bleiben.
 
 ---
 

@@ -96,11 +96,18 @@ async function build(){
   const cfg=await j('/api/config');
   const sec=await j('/api/secrets');
   const f=$('#form');f.innerHTML='';
-  const cats={anzeige:'Anzeige',nacht:'Nachtmodus',aus:'Abschaltzeit'};
-  for(const c in cats){
+  // Welche Abschnitte es gibt, sagt das Schema -- diese Liste gibt ihnen nur
+  // eine Ueberschrift. Vorher bestimmte sie auch den Inhalt, und wer eine
+  // Kategorie zu ergaenzen vergass, dessen Einstellungen erschienen in der
+  // Webapp ueberhaupt nicht. Genau so fehlte der ganze Stundenschlag.
+  const cats={anzeige:'Anzeige',nacht:'Nachtmodus',aus:'Abschaltzeit',
+              stunde:'Stundenschlag',ambient:'Ambient-Modus'};
+  const order=[];
+  schema.settings.forEach(i=>{if(!order.includes(i.category))order.push(i.category)});
+  for(const c of order){
     const items=schema.settings.filter(i=>i.category===c);
     if(!items.length)continue;
-    const h=document.createElement('h2');h.textContent=cats[c];f.append(h);
+    const h=document.createElement('h2');h.textContent=cats[c]||c;f.append(h);
     items.forEach(it=>f.append(field(it,cfg[it.key])));
   }
   const h=document.createElement('h2');h.textContent='Zugangsdaten';f.append(h);

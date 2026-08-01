@@ -60,9 +60,12 @@ public:
 
     // Nur fuer Tests und den Simulator.
     void setFrameInterval(uint16_t ms) { frameIntervalMs_ = ms; }
+    const Animator& animator() const { return animator_; }
 
 private:
     void applyStyles(DisplayState state);
+    void advanceAmbient(uint32_t nowMs);
+    void shuffleAmbient(uint32_t nowMs);
     HealthInputs gatherHealth();
     void autosave(uint32_t nowMs);
 
@@ -102,7 +105,20 @@ private:
     // mit gleicher id ueberschreibt denselben Platz. Ein Zeigervergleich haette
     // den Wechsel deshalb nie bemerkt.
     char lastAnimName_[kNotifyAnimLen] = {};
+
+    // Ambient: spielt die Presets in zufaelliger Reihenfolge, jedes eine
+    // Minute lang. Die Reihenfolge ist eine Permutation, kein Wuerfeln je
+    // Wechsel -- sonst kaeme dieselbe Animation gelegentlich zweimal
+    // hintereinander, und das faellt genau dann auf, wenn man hinsieht.
+    uint32_t ambientUntilMs_ = 0;
+    uint8_t ambientOrder_[kAnimPresetMax] = {};
+    uint8_t ambientPos_ = 0xFF;   // 0xFF: noch keine Runde begonnen
+    uint8_t lastAmbient_ = 0xFF;  // fuer den Uebergang zwischen zwei Runden
 };
+
+// Wechsel im Ambient-Modus. Eine Minute ist lang genug, dass eine langsame
+// Animation ihren Bogen zeigt, und kurz genug, dass es nicht zur Tapete wird.
+inline constexpr uint32_t kAmbientSwitchMs = 60000;
 
 inline constexpr uint32_t kAutosaveQuietMs = 3000;
 

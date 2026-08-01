@@ -215,8 +215,23 @@ gleichzeitig die Buchstaben. Sie sind daher an Anlässe gebunden:
 - **Zur vollen Stunde** — 2–3 s, im Nacht- und Aus-Zustand unterdrückt
 - **Von HA ausgelöst** — als Primitiv `anim` im Notify-Vertrag
 - **Als Dauermodus** — gestartet aus einer HA-Szene
+- **Ambient** — spielt alle Presets in zufälliger Reihenfolge, jedes eine Minute
 
 *Nicht* umgesetzt: Animationen bei Geräte-Zustandsübergängen.
+
+**Zum Ambient-Modus.** Er widerspricht dem ursprünglichen Satz „kein wählbarer
+Modus, der dauerhaft mit der Uhrzeit um dieselbe Fläche konkurriert" — und der
+war aus dem Altprojekt begründet, wo eine dauerhafte Spirale die Uhr unlesbar
+machte. Der Satz gilt weiter für die *Voreinstellung*; der Modus ist deshalb aus,
+bis ihn jemand einschaltet. Drei Dinge unterscheiden ihn von der gescheiterten
+Spirale: er ist ausdrücklich gewählt und mit einem Schalter wieder weg, er weicht
+allem, was Absicht ist (HA-Telegramme und Stundenschlag haben Vorrang), und er
+schweigt im Nacht- und Aus-Zustand. Ein Ambient-Modus, der um drei Uhr morgens
+Konfetti wirft, wäre genau der Grund, aus dem jemand den Stecker zieht.
+
+Die Reihenfolge ist eine Permutation, kein Los je Wechsel: gewürfelt käme
+dieselbe Animation gelegentlich zweimal hintereinander, und das fällt genau dann
+auf, wenn jemand hinsieht.
 
 **Der Dauermodus läuft, bis HA ihn beendet**, mit genau zwei Ausnahmen:
 Abriss der MQTT-Verbindung und Beginn eines Nacht- oder Aus-Fensters.
@@ -236,6 +251,9 @@ dieselben Bausteine, andere Dauer und Deckung.
 | `sparkle` | Dichte, Abklingzeit, Palette |
 | `fire` | eigenes Wärmemodell — aus den anderen nicht darstellbar |
 | `rainbow` | Ursprung, Tempo, Waberstärke — eigene Palette: das Spektrum |
+| `spiral` | Ursprung, Armzahl, Ganghöhe, Tempo, Palette |
+| `comet` | Ursprung, Bahnradius, Schweiflänge, Tempo, Palette |
+| `confetti` | Dichte, Abklingzeit, Tempo — eigene Palette: das Spektrum |
 
 `rainbow` ist das einzige Primitiv ohne Stützfarben. Zwei Farben können einen
 Regenbogen nicht beschreiben; `from`/`to` bleiben dort wirkungslos. Es ist auch
@@ -244,8 +262,10 @@ ungleich schnellen Wellen verbogen, bevor daraus ein Farbton wird — deshalb
 wabern die Ringe, statt bloß zu pulsieren.
 
 **Presets** (`matrix`, `nordlicht`, `silvester`, `sonnenaufgang`, `feuer`,
-`welle`, `tropfen`, `plasma`, `regenbogen`) sind benannte Parameterbündel als
-Tabelle in der Firmware, kein eigener Code.
+`welle`, `tropfen`, `plasma`, `regenbogen`, `wirbel`, `komet`, `konfetti`,
+`ozean`, `glut`) sind benannte Parameterbündel als Tabelle in der Firmware,
+kein eigener Code. `ozean` und `glut` bringen deshalb keine Zeile Logik mit:
+das eine ist `noise` in einer Farbfamilie, das andere `fire` mit kurzen Zungen.
 
 > **Teilweise umgesetzt:** Das Design sagt, *ein* Primitivsatz speise alle drei
 > Rollen. Stundenschlag und Dauermodus teilen sich den `Animator`. Der

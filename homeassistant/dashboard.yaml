@@ -9,8 +9,11 @@
 # also von allein -- auf dieser Karte aber erst, wenn sie hier eingetragen wird.
 # Das ist Absicht: eine Karte, die sich selbst umbaut, waere nicht vorhersagbar.
 #
-# Entitaets-IDs folgen dem Schema <domain>.wortuhr_<schluessel> (obj_id aus
-# MqttContract.cpp). Heisst dein Geraet anders, ist der Praefix zu ersetzen.
+# ENTITAETS-IDs KOMMEN AUS DEM LABEL, nicht aus obj_id: HomeAssistant bildet
+# <domain>.<geraet>_<label> und macht daraus Kleinbuchstaben mit Unterstrichen.
+# Aus "Verlauf-Zielfarbe" wird text.wortuhr_verlauf_zielfarbe. Wer ein Label in
+# Config.h aendert, benennt damit die Entitaet um und bricht dieses Dashboard --
+# Labels sind Schnittstelle, nicht Beschriftung.
 
 views:
   - title: Wortuhr
@@ -24,34 +27,40 @@ views:
         entities:
           - entity: sensor.wortuhr_status
             name: Status
-          - entity: sensor.wortuhr_sync_age
+          - entity: sensor.wortuhr_letzter_zeitsync
             name: Letzter Zeitsync
           - type: divider
-          - entity: number.wortuhr_brightness
+          - entity: number.wortuhr_helligkeit
             name: Helligkeit
-          - entity: text.wortuhr_color
+          - entity: text.wortuhr_farbe
             name: Farbe (RRGGBB)
+          - type: divider
+          # Spielt alle Animationen in zufaelliger Reihenfolge, jede eine
+          # Minute lang. Weicht allem, was Absicht ist: HA-Telegramme und
+          # Stundenschlag haben Vorrang, nachts schweigt er ganz.
+          - entity: switch.wortuhr_ambient_modus
+            name: Ambient-Modus
 
       # --- Anzeige ----------------------------------------------------------
       - type: entities
         title: Anzeige
         show_header_toggle: false
         entities:
-          - entity: switch.wortuhr_gradient
+          - entity: switch.wortuhr_farbverlauf
             name: Farbverlauf
-          - entity: text.wortuhr_gradient_to
+          - entity: text.wortuhr_verlauf_zielfarbe
             name: Verlauf-Zielfarbe
           - type: divider
-          - entity: select.wortuhr_transition
+          - entity: select.wortuhr_uebergang
             name: Uebergang
-          - entity: number.wortuhr_transition_ms
+          - entity: number.wortuhr_uebergangsdauer
             name: Uebergangsdauer (ms)
           - type: divider
-          - entity: number.wortuhr_ghost
+          - entity: number.wortuhr_geisterwoerter
             name: Geisterwoerter
-          - entity: switch.wortuhr_ghost_fillers
+          - entity: switch.wortuhr_fuellbuchstaben_mitglimmen
             name: Fuellbuchstaben mitglimmen
-          - entity: number.wortuhr_breath_depth
+          - entity: number.wortuhr_sekundenatmen
             name: Sekundenatmen
 
       # --- Animationen ------------------------------------------------------
@@ -94,6 +103,56 @@ views:
               data:
                 topic: wortuhr/notify
                 payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"nordlicht","ttl":30}'
+          - type: button
+            name: Wirbel
+            icon: mdi:sync
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"wirbel","ttl":30}'
+          - type: button
+            name: Komet
+            icon: mdi:comet
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"komet","ttl":30}'
+          - type: button
+            name: Konfetti
+            icon: mdi:party-popper
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"konfetti","ttl":30}'
+          - type: button
+            name: Ozean
+            icon: mdi:waves-arrow-right
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"ozean","ttl":30}'
+          - type: button
+            name: Glut
+            icon: mdi:fireplace
+            show_state: false
+            tap_action:
+              action: call-service
+              service: mqtt.publish
+              data:
+                topic: wortuhr/notify
+                payload: '{"id":"dashboard","prio":80,"style":"anim","anim":"glut","ttl":30}'
           - type: button
             name: Matrix
             icon: mdi:code-braces
@@ -172,11 +231,11 @@ views:
         title: Stundenschlag
         show_header_toggle: false
         entities:
-          - entity: switch.wortuhr_chime_enabled
+          - entity: switch.wortuhr_stundenschlag
             name: Zur vollen Stunde
-          - entity: select.wortuhr_chime_style
+          - entity: select.wortuhr_animation
             name: Animation
-          - entity: number.wortuhr_chime_seconds
+          - entity: number.wortuhr_dauer
             name: Dauer (s)
 
       # --- Nacht und Aus ----------------------------------------------------
@@ -187,26 +246,26 @@ views:
         title: Nacht
         show_header_toggle: false
         entities:
-          - entity: switch.wortuhr_night_enabled
+          - entity: switch.wortuhr_nachtmodus
             name: Nachtmodus
-          - entity: text.wortuhr_night_from
+          - entity: text.wortuhr_nacht_ab
             name: Nacht ab
-          - entity: text.wortuhr_night_to
+          - entity: text.wortuhr_nacht_bis
             name: Nacht bis
-          - entity: number.wortuhr_night_brightness
+          - entity: number.wortuhr_helligkeit_nachts
             name: Helligkeit nachts
-          - entity: text.wortuhr_night_color
+          - entity: text.wortuhr_farbe_nachts
             name: Farbe nachts
 
       - type: entities
         title: Abschaltzeit
         show_header_toggle: false
         entities:
-          - entity: switch.wortuhr_off_enabled
+          - entity: switch.wortuhr_abschaltzeit
             name: Abschaltzeit
-          - entity: text.wortuhr_off_from
+          - entity: text.wortuhr_aus_ab
             name: Aus ab
-          - entity: text.wortuhr_off_to
+          - entity: text.wortuhr_aus_bis
             name: Aus bis
 
       # --- Selten gebraucht -------------------------------------------------
@@ -215,16 +274,16 @@ views:
         show_header_toggle: false
         state_color: false
         entities:
-          - entity: number.wortuhr_smoothing
+          - entity: number.wortuhr_ueberblendung
             name: Ueberblendung
-          - entity: number.wortuhr_current_limit
+          - entity: number.wortuhr_strombegrenzung_ma
             name: Strombegrenzung (mA)
           - type: divider
-          - entity: sensor.wortuhr_rssi
+          - entity: sensor.wortuhr_wlan_signal
             name: WLAN-Signal
-          - entity: sensor.wortuhr_current
+          - entity: sensor.wortuhr_geschaetzter_strom
             name: Geschaetzter Strom
-          - entity: sensor.wortuhr_heap
+          - entity: sensor.wortuhr_freier_speicher
             name: Freier Speicher
-          - entity: sensor.wortuhr_uptime
+          - entity: sensor.wortuhr_laufzeit
             name: Laufzeit

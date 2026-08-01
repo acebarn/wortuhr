@@ -74,6 +74,19 @@ Rgb hue8(uint8_t h) {
     }
 }
 
+// Achtelweise Naeherung: innerhalb eines Achtels wird linear interpoliert.
+// Der Fehler bleibt unter drei Grad -- auf 11x10 ist das weniger als ein
+// Pixel, und ein echtes atan2 kostete je Pixel eine Fliesskomma-Emulation.
+uint8_t angle8(int16_t x, int16_t y) {
+    if (!x && !y) return 0;
+    const int32_t ax = x < 0 ? -x : x;
+    const int32_t ay = y < 0 ? -y : y;
+    const int32_t a = ax >= ay ? (ay * 32) / ax : 64 - (ax * 32) / ay;
+
+    if (x >= 0) return y >= 0 ? uint8_t(a) : uint8_t(-a);
+    return y >= 0 ? uint8_t(128 - a) : uint8_t(128 + a);
+}
+
 const char* animName(AnimKind k) {
     switch (k) {
         case AnimKind::Wipe: return "wipe";
@@ -84,6 +97,9 @@ const char* animName(AnimKind k) {
         case AnimKind::Sparkle: return "sparkle";
         case AnimKind::Fire: return "fire";
         case AnimKind::Rainbow: return "rainbow";
+        case AnimKind::Spiral: return "spiral";
+        case AnimKind::Comet: return "comet";
+        case AnimKind::Confetti: return "confetti";
         case AnimKind::Count: break;
     }
     return "wave";
@@ -139,6 +155,22 @@ const AnimPreset kAnimPresets[] = {
     // Kleines scale = weite Ringe: auf 11x10 passen sonst zu viele Farben
     // nebeneinander und das Spektrum zerfaellt in Konfetti.
     {"regenbogen", AnimKind::Rainbow, p({255, 0, 0}, {0, 90, 255}, 26, 170, 60, 128, 0)},
+    // Wirbel: zwei Arme reichen auf 11x10. Bei vier stehen die Arme so dicht,
+    // dass sich die Drehrichtung nicht mehr ablesen laesst -- man sieht dann
+    // ein flimmerndes Rad statt eines Wirbels.
+    {"wirbel", AnimKind::Spiral, p({255, 0, 120}, {40, 0, 255}, 60, 100, 90, 128, 0)},
+    // Komet: langer Schweif, damit die Bahn als Bahn lesbar bleibt. Bei kurzem
+    // Schweif sieht man einen wandernden Punkt und errraet die Kurve nicht.
+    // `to` ist die Farbe der vollen Helligkeit, also die des Kopfes -- wie bei
+    // silvester. Andersherum glueht der Schweif und der Kopf verglimmt.
+    {"komet", AnimKind::Comet, p({0, 60, 255}, {255, 255, 210}, 120, 128, 200, 210, 0)},
+    {"konfetti", AnimKind::Confetti, p({255, 255, 255}, {255, 255, 255}, 150, 120, 128, 150, 0)},
+    // Ozean: dieselbe Rechnung wie plasma, aber langsam und in einer einzigen
+    // Farbfamilie -- ruhig genug, um nebenher zu laufen.
+    {"ozean", AnimKind::Noise, p({0, 40, 140}, {0, 220, 200}, 26, 128, 60, 128, 0)},
+    // Glut: Feuer, das niedergebrannt ist. Kleine Dichte heisst kurze Zungen,
+    // dazu eine Palette ohne Gelb -- es soll glimmen, nicht lodern.
+    {"glut", AnimKind::Fire, p({120, 0, 0}, {255, 90, 0}, 55, 60, 128, 128, 0)},
 };
 const uint8_t kAnimPresetCount = sizeof(kAnimPresets) / sizeof(kAnimPresets[0]);
 
@@ -196,6 +228,9 @@ void Animator::render(Frame& out, uint32_t nowMs) const {
         case AnimKind::Sparkle: renderSparkle(out, t); break;
         case AnimKind::Fire: renderFire(out, t); break;
         case AnimKind::Rainbow: renderRainbow(out, t); break;
+        case AnimKind::Spiral: renderSpiral(out, t); break;
+        case AnimKind::Comet: renderComet(out, t); break;
+        case AnimKind::Confetti: renderConfetti(out, t); break;
         case AnimKind::Count: break;
     }
 }
@@ -431,6 +466,82 @@ void Animator::renderRainbow(Frame& out, uint32_t t) const {
             const uint8_t bright = uint8_t(200 + sin8(uint8_t(dist * 12 - p / 2)) / 5);
             out.setXY(x, y, scale(hue8(hue), bright));
         }
+    }
+}
+
+// Arme, die sich um die Mitte drehen.
+//
+// Winkel und Abstand gehen gemeinsam in die Phase: waere nur der Winkel
+// beteiligt, ergaebe das ein Rad mit Speichen; erst der Abstandsanteil biegt
+// die Speichen zu Armen. Wie viele es sind, sagt die Dichte -- ganzzahlig,
+// sonst klaffte bei jedem Umlauf eine Naht.
+void Animator::renderSpiral(Frame& out, uint32_t t) const {
+    const uint32_t p = phase(t, params_.speed, 900);
+    const uint8_t arms = uint8_t(1 + params_.density / 64);  // 1..4
+    const uint8_t k = uint8_t(4 + params_.scale / 20);       // Ganghoehe
+
+    for (uint8_t y = 0; y < kHeight; ++y) {
+        for (uint8_t x = 0; x < kWidth; ++x) {
+            const int16_t dx = int16_t(x) - params_.originX;
+            const int16_t dy = int16_t(y) - params_.originY;
+            const int32_t ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+            const int32_t dist = (ax > ay ? ax : ay) + (ax > ay ? ay : ax) / 2;
+
+            const uint8_t v = sin8(uint8_t(angle8(dx, dy) * arms + dist * k - p));
+            out.setXY(x, y, shade(v));
+        }
+    }
+}
+
+// Ein Kopf auf einer Bahn, hinter sich ein verglimmender Schweif.
+//
+// Stateless wie alle anderen: der Schweif ist nicht gespeichert, sondern wird
+// aus der Vergangenheit der Bahn erzeugt -- jedes Glied ist die Position, die
+// der Kopf vor k Schritten hatte. Deshalb sieht der Simulator dasselbe wie das
+// Geraet, und ein Test ist wiederholbar.
+//
+// Gezeichnet wird vom Schweifende zum Kopf. Andersherum uebermalte ein
+// dunkles Glied den Kopf, sobald die Bahn sich selbst nahe kommt.
+void Animator::renderComet(Frame& out, uint32_t t) const {
+    const uint32_t p = phase(t, params_.speed, 1400);
+    const uint8_t trail = uint8_t(5 + params_.decay / 16);  // 5..20 Glieder
+    const int32_t rx = 3 + params_.scale / 90;              // Bahnradius
+    const int32_t ry = 2 + params_.scale / 120;
+
+    // Schrittweite aus dem Bahnumfang, nicht fest: ein Glied soll etwa eine
+    // Zelle weiter liegen als das vorige. Fest gewaehlt war der Schritt zu
+    // klein -- zehn Glieder fielen auf vier Zellen, und statt eines Kometen
+    // sah man einen Klumpen. Zu gross gerissen es den Schweif in Punkte.
+    const int32_t step = 256 / (3 * (rx + ry) + 1);
+
+    for (int16_t k = trail; k >= 0; --k) {
+        const uint8_t a = uint8_t(int32_t(p) - int32_t(k) * step);
+        const int32_t cx = params_.originX + (int32_t(sin8(uint8_t(a + 64))) - 128) * rx / 128;
+        const int32_t cy = params_.originY + (int32_t(sin8(a)) - 128) * ry / 128;
+        if (cx < 0 || cx >= kWidth || cy < 0 || cy >= kHeight) continue;
+
+        const uint8_t v = clamp8(255 - int32_t(k) * 255 / (trail + 1));
+        out.setXY(uint8_t(cx), uint8_t(cy), shade(v));
+    }
+}
+
+// Wie sparkle, aber jede Zelle blitzt in einer eigenen Spektralfarbe auf --
+// und bei jedem Aufblitzen in einer anderen. Ohne den Rundenzaehler haette
+// jede Zelle fuer immer dieselbe Farbe, und aus Konfetti wuerden Leuchtdioden
+// mit Zuweisung.
+void Animator::renderConfetti(Frame& out, uint32_t t) const {
+    const uint32_t p = phase(t, params_.speed, 1100);
+    const uint8_t period = uint8_t(60 + (255 - params_.decay) / 2);
+
+    for (uint16_t c = 0; c < kLetterCount; ++c) {
+        if (hash8(c) > params_.density) continue;
+
+        const uint32_t local = (p + hash8(uint16_t(c + 500))) % period;
+        if (local > period / 3) continue;  // die meiste Zeit dunkel
+
+        const uint8_t v = clamp8(255 - int32_t(local) * 255 / (period / 3));
+        const uint32_t round = (p + hash8(uint16_t(c + 500))) / period;
+        out.setCell(c, scale(hue8(hash8(uint16_t(c * 7 + round * 31))), v));
     }
 }
 

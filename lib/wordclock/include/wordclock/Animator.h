@@ -18,14 +18,17 @@ namespace wordclock {
 // YAML in HomeAssistant, keinen Flashvorgang.
 
 enum class AnimKind : uint8_t {
-    Wipe,     // gerichtete Fuellung
-    Fall,     // herabfallende Spuren
-    Ripple,   // Welle von einem Punkt
-    Wave,     // Farbwelle unter einem Winkel
-    Noise,    // langsam wanderndes Farbrauschen
-    Sparkle,  // Funkeln einzelner Buchstaben
-    Fire,     // Waermemodell
-    Rainbow,  // Spektrum, das aus der Mitte quillt
+    Wipe,      // gerichtete Fuellung
+    Fall,      // herabfallende Spuren
+    Ripple,    // Welle von einem Punkt
+    Wave,      // Farbwelle unter einem Winkel
+    Noise,     // langsam wanderndes Farbrauschen
+    Sparkle,   // Funkeln einzelner Buchstaben
+    Fire,      // Waermemodell
+    Rainbow,   // Spektrum, das aus der Mitte quillt
+    Spiral,    // Arme, die sich um die Mitte drehen
+    Comet,     // Kopf auf einer Bahn, mit Schweif
+    Confetti,  // Funkeln, jede Zelle in eigener Spektralfarbe
     Count
 };
 
@@ -40,13 +43,15 @@ struct AnimParams {
     Rgb to{255, 0, 80};
 
     uint8_t speed = 128;      // 0 = Stillstand, 255 = sehr schnell
-    uint8_t density = 128;    // Fall, Sparkle, Fire: wie viel gleichzeitig
+    uint8_t density = 128;    // Fall, Sparkle, Fire, Confetti: wie viel gleichzeitig
                               // Rainbow: wie stark die Ringe wabern
-    uint8_t scale = 128;      // Wave, Noise, Ripple, Rainbow: raeumliche Feinheit
-    uint8_t decay = 128;      // Fall, Sparkle: Laenge der Spur
+                              // Spiral: Zahl der Arme
+    uint8_t scale = 128;      // Wave, Noise, Ripple, Rainbow, Spiral: raeumliche Feinheit
+                              // Comet: Radius der Bahn
+    uint8_t decay = 128;      // Fall, Sparkle, Comet, Confetti: Laenge der Spur
     uint8_t direction = 0;    // Wipe/Fall: 0 unten, 1 oben, 2 links, 3 rechts
                               // Wave: Winkel in Achtelschritten
-    uint8_t originX = 5;      // Ripple, Rainbow
+    uint8_t originX = 5;      // Ripple, Rainbow, Spiral, Comet
     uint8_t originY = 5;
 };
 
@@ -59,6 +64,11 @@ struct AnimPreset {
 
 extern const AnimPreset kAnimPresets[];
 extern const uint8_t kAnimPresetCount;
+
+// Obergrenze zur Uebersetzungszeit. kAnimPresetCount ist eine Laufzeitgroesse
+// und taugt nicht als Feldgrenze; wer die Presets durchmischen will, braucht
+// aber ein Feld. Ein Test haelt fest, dass die Zahl reicht.
+inline constexpr uint8_t kAnimPresetMax = 32;
 
 // Loest einen Namen auf: entweder ein Primitiv ("wave") oder ein Preset
 // ("matrix"). Presets duerfen ihre Parameter mitbringen.
@@ -88,6 +98,9 @@ private:
     void renderSparkle(Frame&, uint32_t t) const;
     void renderFire(Frame&, uint32_t t) const;
     void renderRainbow(Frame&, uint32_t t) const;
+    void renderSpiral(Frame&, uint32_t t) const;
+    void renderComet(Frame&, uint32_t t) const;
+    void renderConfetti(Frame&, uint32_t t) const;
 
     Rgb shade(uint8_t v) const;
 
@@ -112,5 +125,13 @@ uint8_t hash8(uint16_t x);
 // fast rot. Der Uebergang ueber den Nullpunkt ist stetig -- eine Naht waere auf
 // der Frontplatte als stehender Strich sichtbar.
 Rgb hue8(uint8_t h);
+
+// Winkel eines Vektors, 0..255 im Kreis, gegen den Uhrzeigersinn ab "rechts".
+//
+// Genaehert: innerhalb eines Achtels wird linear interpoliert, der Fehler
+// bleibt unter drei Grad. Ein echtes atan2 kostete auf dem ESP8266 eine
+// Fliesskomma-Emulation je Pixel -- bei 110 Pixeln und 20 Bildern je Sekunde
+// ist das der Unterschied zwischen fluessig und ruckelig.
+uint8_t angle8(int16_t x, int16_t y);
 
 }  // namespace wordclock

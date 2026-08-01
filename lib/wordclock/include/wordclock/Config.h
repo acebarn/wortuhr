@@ -54,6 +54,8 @@ enum class ConfigKey : uint8_t {
     ChimeStyle,
     ChimeSeconds,
 
+    Ambient,
+
     Count
 };
 
@@ -74,9 +76,9 @@ struct ConfigItem {
 inline constexpr const char* kTransitionOptions[] = {"none", "staggered", "fadetop", "falling"};
 
 // Muss zu kAnimPresets passen -- ein Test haelt das fest.
-inline constexpr const char* kChimeOptions[] = {"matrix", "nordlicht", "silvester", "sonnenaufgang",
-                                                "feuer",  "welle",     "tropfen",   "plasma",
-                                                "regenbogen"};
+inline constexpr const char* kChimeOptions[] = {
+    "matrix",     "nordlicht", "silvester", "sonnenaufgang", "feuer",    "welle",  "tropfen",
+    "plasma",     "regenbogen", "wirbel",   "komet",         "konfetti", "ozean",  "glut"};
 inline constexpr uint8_t kChimeOptionCount = sizeof(kChimeOptions) / sizeof(kChimeOptions[0]);
 
 // Reihenfolge muss zu enum ConfigKey passen. Ein Test prueft das.
@@ -110,6 +112,8 @@ inline constexpr ConfigItem kSchema[kConfigCount] = {
     {"chime_style", "Animation", "stunde", ConfigType::Choice, 0, kChimeOptionCount - 1, 6,
      kChimeOptions, kChimeOptionCount},
     {"chime_seconds", "Dauer", "stunde", ConfigType::Number, 1, 15, 3, nullptr, 0},
+
+    {"ambient", "Ambient-Modus", "ambient", ConfigType::Bool, 0, 1, 0, nullptr, 0},
 };
 
 constexpr const ConfigItem& schemaOf(ConfigKey k) { return kSchema[uint8_t(k)]; }

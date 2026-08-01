@@ -122,6 +122,23 @@ static void test_index_page_is_served_from_flash() {
                                  "die Seite muss ihr Formular aus dem Schema bauen");
 }
 
+// Jede Kategorie des Schemas braucht eine Ueberschrift in der Seite.
+//
+// Die Webapp baute ihr Formular frueher aus einer fest verdrahteten Liste von
+// Kategorien. Wer eine neue ergaenzte und die Liste vergass, dessen
+// Einstellungen erschienen dort ueberhaupt nicht -- der komplette
+// Stundenschlag fehlte so, ohne dass ein Test etwas gemerkt haette.
+static void test_every_category_has_a_heading_in_the_page() {
+    const char* page = WebApi::indexPage();
+    std::set<std::string> cats;
+    for (uint8_t i = 0; i < kConfigCount; ++i) cats.insert(kSchema[i].category);
+
+    for (const std::string& c : cats)
+        TEST_ASSERT_NOT_NULL_MESSAGE(std::strstr(page, c.c_str()),
+                                     msg("Kategorie \"%s\" hat keine Ueberschrift in der Seite",
+                                         c.c_str()));
+}
+
 static void test_unknown_path_is_404() {
     Rig r;
     WebResponse res;
@@ -373,6 +390,7 @@ int main() {
     RUN_TEST(test_long_values_are_truncated_not_overflowed);
     RUN_TEST(test_mqtt_port_parsing);
     RUN_TEST(test_index_page_is_served_from_flash);
+    RUN_TEST(test_every_category_has_a_heading_in_the_page);
     RUN_TEST(test_unknown_path_is_404);
     RUN_TEST(test_schema_covers_every_setting_and_secret);
     RUN_TEST(test_config_round_trip);
